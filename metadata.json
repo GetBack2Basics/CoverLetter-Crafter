@@ -1,6 +1,6 @@
 {
-  "name": "Cover Letter AI Builder",
-  "description": "A personalized cover letter generator for George Chandeep Corea using Gemini AI.",
+  "name": "JobCrafter AI",
+  "description": "Premium multi-tool workspace to generate tailored cover letters, Capability Task presentation slides, operational work sheets, and STAR interview Q&A guides using Gemini AI.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

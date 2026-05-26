@@ -1,6 +1,16 @@
 import { useState, useRef, useEffect } from "react";
-import { generateCoverLetter, extractJobDetails } from "./services/gemini";
-import { profile } from "./data/profile";
+import { 
+  generateCoverLetter, 
+  extractJobDetails, 
+  removeAiVoice, 
+  analyzeCoverLetter,
+  generateInterviewPrep,
+  generateCapabilityTaskDraft,
+  generateWorkDataSheet,
+  generateWorkDocument
+} from "./services/gemini";
+import { profile as sampleProfile } from "./data/profile";
+import { CandidateProfile, JobRole } from "./types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,27 +50,71 @@ import {
   Sparkles,
   Trash2,
   Printer,
-  FileUp
+  FileUp,
+  Calendar,
+  Layers,
+  Table,
+  Cpu,
+  Bookmark,
+  Building,
+  Check,
+  AlertCircle
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
+import { DashboardView, InterviewView, WorkView } from "./components/Workspaces";
 
 export default function App() {
+  const [activeView, setActiveView] = useState<"dashboard" | "cover" | "interview" | "work">("dashboard");
+  
+  // Job Seeker Hub States
+  const [interviewPrepData, setInterviewPrepData] = useState<any>(null);
+  const [isPrepGenerating, setIsPrepGenerating] = useState(false);
+  const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
+  const [userStarsAnswers, setUserStarsAnswers] = useState<Record<string, string>>({});
+
+  // Capability tasks state
+  const [taskInstructions, setTaskInstructions] = useState("");
+  const [taskDraftOutput, setTaskDraftOutput] = useState<any>(null);
+  const [isTaskDrafting, setIsTaskDrafting] = useState(false);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+
+  // Operational work tasks
+  const [workTaskDesc, setWorkTaskDesc] = useState("");
+  const [selectedDocType, setSelectedDocType] = useState("SOP Document");
+  const [generatedDoc, setGeneratedDoc] = useState("");
+  const [isDocGenerating, setIsDocGenerating] = useState(false);
+
+  // Sheets simulator state
+  const [sheetInput, setSheetInput] = useState("");
+  const [generatedSheet, setGeneratedSheet] = useState<any>(null);
+  const [isSheetGenerating, setIsSheetGenerating] = useState(false);
+
   const [companyName, setCompanyName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+  const [applicationEmail, setApplicationEmail] = useState("");
   const [hiringManager, setHiringManager] = useState("");
   const [coverLetterSpecifics, setCoverLetterSpecifics] = useState("");
   const [companyInfo, setCompanyInfo] = useState("");
   const [keyRequirements, setKeyRequirements] = useState<string[]>([]);
   const [jobDescription, setJobDescription] = useState("");
+  const [userProfile, setUserProfile] = useState<CandidateProfile>(sampleProfile);
   const [isExtracting, setIsExtracting] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [generatedLetter, setGeneratedLetter] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [showEmailDraft, setShowEmailDraft] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [tempProfile, setTempProfile] = useState<CandidateProfile>(userProfile);
   const [advice, setAdvice] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editableLetter, setEditableLetter] = useState("");
   const [refinementText, setRefinementText] = useState("");
+  const [analysisSuggestions, setAnalysisSuggestions] = useState<any[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const [template, setTemplate] = useState("modern");
   const [templates, setTemplates] = useState([
     { id: 'modern', name: 'Modern' },
@@ -72,8 +126,309 @@ export default function App() {
     { id: 'professional', name: 'Professional' },
     { id: 'simple', name: 'Simple' }
   ]);
+
+  // Multi-role lifecycle state management
+  const [roles, setRoles] = useState<JobRole[]>(() => {
+    const saved = localStorage.getItem("jobcrafter_roles");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved roles", e);
+      }
+    }
+    return [
+      {
+        id: "default-rfs-campaign",
+        companyName: "NSW Rural Fire Service",
+        jobTitle: "GIS Spatial Analyst",
+        jobDescription: "The NSW Rural Fire Service (RFS) is the world's largest volunteer fire fighting agency...\n\nLooking for a GIS Spatial Analyst to lead spatial solutions, custom web mapping apps, Python scripts automation, emergency dispatch sensor integration, disaster response spatial coordinates mapping tool development, and geocentric datum conversions (GDA94 to GDA2020).",
+        status: "Interview Scheduled",
+        createdDate: "Mon 25 May",
+        coverLetter: `George Chandeep Corea\nCoreaGC@gmail.com\n\n25 May 2026\n\nMeaghan Jenkins\nNSW Rural Fire Service (RFS)\n\nDear Meaghan Jenkins and the NSW RFS Selection Panel,\n\nI am writing to express my enthusiastic interest in the GIS Spatial Analyst / Spatial Specialist position at the NSW Rural Fire Service (RFS). With solid professional domain experience in emergency services geographical tools, automated Python script execution, and spatial coordinate grids, I am highly eager to lead spatial delivery and data validation operations at your world-class disaster management agency.\n\nThroughout my career as a Geospatial Specialist, I have prioritized optimizing data integrity and operational readiness. For example, during critical hazard mapping sprints, I successfully deployed python scripts for spatial automation, reducing coordinate grid ingest lag by over 40%. This matches directly with NSW RFS priorities to manage active coordinate datums (including converting local coordinates from GDA94 to GDA2020 datums cleanly in real-time) and supporting sensor networks deployed on incident command terminals.\n\nIn addition, I have extensive experience collaborating closely with operational incident command bureaus. I am accustomed to translating emergency directives into actionable digital maps, including developing customized drone hazard buffers and managing massive geospatial databases containing thousands of assets (such as water mains, fire hazard regions, and command zones).\n\nI am fully prepared to present my technical outputs for the selection panel's review on Friday, and I look forward to discussing how my spatial delivery credentials will guarantee GIS excellence at NSW RFS.\n\nSincerely,\nGeorge Chandeep Corea`,
+        coverLetterSpecifics: "GDA94 to GDA2020 datum conversion script, python automation buffers",
+        hiringManager: "Meaghan Jenkins",
+        applicationEmail: "meaghan.jenkins@rfs.nsw.gov.au",
+        keyRequirements: [
+          "Datum conversion expertise (GDA94 to GDA2020)",
+          "Python scripting for geospatial layers processing",
+          "Incident Command Systems coordinates sensor dashboard mapping",
+          "Specialized disaster management and fire hazard spatial buffering SOP layout"
+        ],
+        taskInstructions: "Capability Task 1: Spatial incident command system coordinates grid sensor mapping SOP.\nCapability Task 2: GDA94 to GDA2020 conversion python script presentation.",
+        workTaskDesc: "Spatial automation script to convert coordinate inputs from GDA94 to GDA2020 datum across 50 dispatch points."
+      },
+      {
+        id: "default-dcceew-campaign",
+        companyName: "Department of Climate Change (DCCEEW)",
+        jobTitle: "Remote Sensing Technical Officer",
+        jobDescription: "Lead analytical drone LiDAR and satellite imagery forestry hazard audits across NSW conservation sectors.",
+        status: "Applied",
+        createdDate: "Sat 23 May",
+        coverLetter: "Dear DCCEEW Selection Board,\n\nI am writing to apply for the Remote Sensing Technical Officer position. My skills in LiDAR forestry classifications and satellite bands processing are highly aligned...",
+        workTaskDesc: "Drone LiDAR classification script to calculate canopy density indicators for bushfire hazard maps."
+      },
+      {
+        id: "default-tablelands-campaign",
+        companyName: "Tablelands Regional Council",
+        jobTitle: "Senior GIS Geospatial Specialist",
+        jobDescription: "Lead regional council asset audits, drainage structures mapping, and coordinate GITA spatial community metrics integration.",
+        status: "Accepted",
+        createdDate: "Wed 20 May",
+        coverLetter: "To the Tablelands Selection Team,\n\nI am thrilled to accept the offer for Senior GIS Geospatial Specialist. This campaign represents a successful integration of municipal asset records..."
+      },
+      {
+        id: "default-acme-campaign",
+        companyName: "Acme Forestry Geospatial",
+        jobTitle: "Junior GIS Developer",
+        jobDescription: "Python script automation for woodland parcel spatial buffering operations.",
+        status: "Rejected",
+        createdDate: "Fri 15 May",
+        coverLetter: "Dear Acme Hiring Group,\n\nPlease accept this letter of application for your Junior GIS Developer role where I highlight python spatial buffering operations..."
+      }
+    ];
+  });
+
+  const [activeRoleId, setActiveRoleId] = useState<string>(() => {
+    const saved = localStorage.getItem("jobcrafter_active_role_id");
+    return saved || "default-rfs-campaign";
+  });
+
+  const switchActiveRole = (newRoleId: string) => {
+    // 1. Lock in the current state to the previously active role in the array
+    setRoles(prevRoles => {
+      const updated = prevRoles.map(r => {
+        if (r.id === activeRoleId) {
+          return {
+            ...r,
+            companyName,
+            jobTitle,
+            jobDescription,
+            applicationEmail,
+            hiringManager,
+            coverLetterSpecifics,
+            companyInfo,
+            keyRequirements,
+            coverLetter: generatedLetter,
+            emailSubject,
+            emailBody,
+            analysisSuggestions,
+            interviewPrepData,
+            userStarsAnswers,
+            taskInstructions,
+            taskDraftOutput,
+            workTaskDesc,
+            selectedDocType,
+            generatedDoc,
+            sheetInput,
+            generatedSheet,
+          };
+        }
+        return r;
+      });
+
+      // 2. Load the state of the target role directly
+      const targetRole = updated.find(r => r.id === newRoleId);
+      if (targetRole) {
+        setCompanyName(targetRole.companyName || "");
+        setJobTitle(targetRole.jobTitle || "");
+        setJobDescription(targetRole.jobDescription || "");
+        setApplicationEmail(targetRole.applicationEmail || "");
+        setHiringManager(targetRole.hiringManager || "");
+        setCoverLetterSpecifics(targetRole.coverLetterSpecifics || "");
+        setCompanyInfo(targetRole.companyInfo || "");
+        setKeyRequirements(targetRole.keyRequirements || []);
+        setGeneratedLetter(targetRole.coverLetter || "");
+        setEditableLetter(targetRole.coverLetter || "");
+        setEmailSubject(targetRole.emailSubject || "");
+        setEmailBody(targetRole.emailBody || "");
+        setAnalysisSuggestions(targetRole.analysisSuggestions || []);
+        setInterviewPrepData(targetRole.interviewPrepData || null);
+        setUserStarsAnswers(targetRole.userStarsAnswers || {});
+        setTaskInstructions(targetRole.taskInstructions || "");
+        setTaskDraftOutput(targetRole.taskDraftOutput || null);
+        setWorkTaskDesc(targetRole.workTaskDesc || "");
+        setSelectedDocType(targetRole.selectedDocType || "SOP Document");
+        setGeneratedDoc(targetRole.generatedDoc || "");
+        setSheetInput(targetRole.sheetInput || "");
+        setGeneratedSheet(targetRole.generatedSheet || null);
+      }
+
+      localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
+      return updated;
+    });
+
+    setActiveRoleId(newRoleId);
+    localStorage.setItem("jobcrafter_active_role_id", newRoleId);
+  };
+
+  useEffect(() => {
+    const activeRole = roles.find(r => r.id === activeRoleId);
+    if (activeRole) {
+      setCompanyName(activeRole.companyName || "");
+      setJobTitle(activeRole.jobTitle || "");
+      setJobDescription(activeRole.jobDescription || "");
+      setApplicationEmail(activeRole.applicationEmail || "");
+      setHiringManager(activeRole.hiringManager || "");
+      setCoverLetterSpecifics(activeRole.coverLetterSpecifics || "");
+      setCompanyInfo(activeRole.companyInfo || "");
+      setKeyRequirements(activeRole.keyRequirements || []);
+      setGeneratedLetter(activeRole.coverLetter || "");
+      setEditableLetter(activeRole.coverLetter || "");
+      setEmailSubject(activeRole.emailSubject || "");
+      setEmailBody(activeRole.emailBody || "");
+      setAnalysisSuggestions(activeRole.analysisSuggestions || []);
+      setInterviewPrepData(activeRole.interviewPrepData || null);
+      setUserStarsAnswers(activeRole.userStarsAnswers || {});
+      setTaskInstructions(activeRole.taskInstructions || "");
+      setTaskDraftOutput(activeRole.taskDraftOutput || null);
+      setWorkTaskDesc(activeRole.workTaskDesc || "");
+      setSelectedDocType(activeRole.selectedDocType || "SOP Document");
+      setGeneratedDoc(activeRole.generatedDoc || "");
+      setSheetInput(activeRole.sheetInput || "");
+      setGeneratedSheet(activeRole.generatedSheet || null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeRoleId) return;
+    setRoles(prevRoles => {
+      const currentRole = prevRoles.find(r => r.id === activeRoleId);
+      if (currentRole) {
+        const hasChange = 
+          currentRole.companyName !== companyName ||
+          currentRole.jobTitle !== jobTitle ||
+          currentRole.jobDescription !== jobDescription ||
+          currentRole.applicationEmail !== applicationEmail ||
+          currentRole.hiringManager !== hiringManager ||
+          currentRole.coverLetterSpecifics !== coverLetterSpecifics ||
+          currentRole.companyInfo !== companyInfo ||
+          JSON.stringify(currentRole.keyRequirements) !== JSON.stringify(keyRequirements) ||
+          currentRole.coverLetter !== generatedLetter ||
+          currentRole.emailSubject !== emailSubject ||
+          currentRole.emailBody !== emailBody ||
+          JSON.stringify(currentRole.analysisSuggestions) !== JSON.stringify(analysisSuggestions) ||
+          JSON.stringify(currentRole.interviewPrepData) !== JSON.stringify(interviewPrepData) ||
+          JSON.stringify(currentRole.userStarsAnswers) !== JSON.stringify(userStarsAnswers) ||
+          currentRole.taskInstructions !== taskInstructions ||
+          JSON.stringify(currentRole.taskDraftOutput) !== JSON.stringify(taskDraftOutput) ||
+          currentRole.workTaskDesc !== workTaskDesc ||
+          currentRole.selectedDocType !== selectedDocType ||
+          currentRole.generatedDoc !== generatedDoc ||
+          currentRole.sheetInput !== sheetInput ||
+          JSON.stringify(currentRole.generatedSheet) !== JSON.stringify(generatedSheet);
+
+        if (!hasChange) return prevRoles;
+      }
+
+      const updated = prevRoles.map(r => {
+        if (r.id === activeRoleId) {
+          return {
+            ...r,
+            companyName,
+            jobTitle,
+            jobDescription,
+            applicationEmail,
+            hiringManager,
+            coverLetterSpecifics,
+            companyInfo,
+            keyRequirements,
+            coverLetter: generatedLetter,
+            emailSubject,
+            emailBody,
+            analysisSuggestions,
+            interviewPrepData,
+            userStarsAnswers,
+            taskInstructions,
+            taskDraftOutput,
+            workTaskDesc,
+            selectedDocType,
+            generatedDoc,
+            sheetInput,
+            generatedSheet,
+          };
+        }
+        return r;
+      });
+
+      localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
+      return updated;
+    });
+  }, [
+    activeRoleId,
+    companyName,
+    jobTitle,
+    jobDescription,
+    applicationEmail,
+    hiringManager,
+    coverLetterSpecifics,
+    companyInfo,
+    keyRequirements,
+    generatedLetter,
+    emailSubject,
+    emailBody,
+    analysisSuggestions,
+    interviewPrepData,
+    userStarsAnswers,
+    taskInstructions,
+    taskDraftOutput,
+    workTaskDesc,
+    selectedDocType,
+    generatedDoc,
+    sheetInput,
+    generatedSheet
+  ]);
+
+  const handleCreateRole = (cmp: string, title: string, desc: string) => {
+    const newId = `role-${Math.random().toString(36).substr(2, 9)}`;
+    const newRole: JobRole = {
+      id: newId,
+      companyName: cmp,
+      jobTitle: title,
+      jobDescription: desc,
+      status: "Drafting",
+      createdDate: new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short" })
+    };
+
+    setRoles(prev => {
+      const updated = [...prev, newRole];
+      localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
+      return updated;
+    });
+
+    switchActiveRole(newId);
+  };
+
+  const handleUpdateRoleStatus = (id: string, status: JobRole["status"]) => {
+    setRoles(prev => {
+      const updated = prev.map(r => r.id === id ? { ...r, status } : r);
+      localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
+      return updated;
+    });
+    toast.success(`Milestone stage updated to: ${status}`);
+  };
+
+  const handleDeleteRole = (id: string) => {
+    setRoles(prev => {
+      const updated = prev.filter(r => r.id !== id);
+      localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
+      return updated;
+    });
+
+    // If deleting our active role, fallback to the first remaining role campaign
+    if (activeRoleId === id) {
+      setRoles(prev => {
+        const remaining = prev.filter(r => r.id !== id);
+        if (remaining.length > 0) {
+          setTimeout(() => switchActiveRole(remaining[0].id), 0);
+        }
+        return prev;
+      });
+    }
+    toast.success("Campaign removed successfully");
+  };
   const [sources, setSources] = useState([
-    { id: '1', type: 'linkedin', name: profile.linkedin, icon: <Linkedin className="w-3 h-3 text-[#0A66C2]" /> },
+    { id: '1', type: 'linkedin', name: userProfile.linkedin, icon: <Linkedin className="w-3 h-3 text-[#0A66C2]" /> },
     { id: '2', type: 'file', name: 'Current Resume (Click to upload)', icon: <FileText className="w-3 h-3 text-primary" /> }
   ]);
 
@@ -191,6 +546,7 @@ export default function App() {
       const details = await extractJobDetails(jobDescription);
       setCompanyName(details.companyName || "");
       setJobTitle(details.jobTitle || "");
+      setApplicationEmail(details.applicationEmail || "");
       setHiringManager(details.hiringManager || "Hiring Manager");
       setCoverLetterSpecifics(details.coverLetterSpecifics || "");
       setCompanyInfo(details.companyInfo || "");
@@ -221,6 +577,7 @@ export default function App() {
         coverLetterSpecifics,
         companyInfo,
         keyRequirements,
+        userProfile,
         "professional", 
         isRefinement ? refinementText : undefined, 
         isRefinement ? generatedLetter : undefined,
@@ -230,6 +587,15 @@ export default function App() {
       if (result.letter) {
         setGeneratedLetter(result.letter);
         setEditableLetter(result.letter);
+        setIsEditing(false);
+      }
+
+      if (result.emailSubject) {
+        setEmailSubject(result.emailSubject);
+      }
+
+      if (result.emailBody) {
+        setEmailBody(result.emailBody);
       }
       
       if (result.advice) {
@@ -244,6 +610,127 @@ export default function App() {
       toast.error("Failed to process request. Please try again.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleRemoveAiVoice = async () => {
+    if (!generatedLetter) return;
+
+    setIsGenerating(true);
+    try {
+      const result = await removeAiVoice(
+        editableLetter || generatedLetter,
+        userProfile,
+        companyName,
+        jobTitle
+      );
+      
+      if (result.letter) {
+        setGeneratedLetter(result.letter);
+        setEditableLetter(result.letter);
+        setIsEditing(false);
+        toast.success("AI voice removed! The letter sounds more human now.");
+      }
+      
+      if (result.advice) {
+        setAdvice(result.advice);
+      }
+    } catch (error) {
+      toast.error("Failed to humanize the letter. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!generatedLetter) return;
+    
+    setIsAnalyzing(true);
+    setShowAnalysis(true);
+    
+    try {
+      const result = await analyzeCoverLetter(
+        generatedLetter,
+        jobDescription,
+        userProfile
+      );
+      setAnalysisSuggestions(result.suggestions);
+      toast.success("Analysis complete! Review the suggestions below.");
+    } catch (error) {
+      toast.error("Failed to analyze the letter. Please try again.");
+      console.error(error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleGeneratePrep = async () => {
+    setIsPrepGenerating(true);
+    try {
+      const prep = await generateInterviewPrep(jobDescription, userProfile, generatedLetter);
+      setInterviewPrepData(prep);
+      setSelectedQuestionIndex(0);
+      toast.success("Tailored RFS Interview Prep Guide compiled!");
+    } catch (error) {
+      toast.error("Failed to compile interview guide. Please try again.");
+      console.error(error);
+    } finally {
+      setIsPrepGenerating(false);
+    }
+  };
+
+  const handleGenerateTaskDraft = async (outputType: "slides" | "report") => {
+    if (!taskInstructions) {
+      toast.error("Please insert Capability Task instructions first.");
+      return;
+    }
+    setIsTaskDrafting(true);
+    try {
+      const draft = await generateCapabilityTaskDraft(taskInstructions, userProfile, jobDescription, outputType);
+      setTaskDraftOutput(draft);
+      setActiveSlideIndex(0);
+      toast.success(`Capability ${outputType === 'slides' ? 'Presentation' : 'Operational Memo'} created!`);
+    } catch (error) {
+      toast.error("Failed to generate task draft. Please try again.");
+      console.error(error);
+    } finally {
+      setIsTaskDrafting(false);
+    }
+  };
+
+  const handleGenerateWorkDocument = async () => {
+    if (!workTaskDesc) {
+      toast.error("Please describe the work task first.");
+      return;
+    }
+    setIsDocGenerating(true);
+    try {
+      const doc = await generateWorkDocument(workTaskDesc, userProfile, selectedDocType);
+      setGeneratedDoc(doc.markdownContent);
+      toast.success("Operational SOP draft constructed!");
+    } catch (error) {
+      toast.error("Failed to generate document. Please try again.");
+      console.error(error);
+    } finally {
+      setIsDocGenerating(false);
+    }
+  };
+
+  const handleGenerateWorkSheet = async () => {
+    if (!sheetInput) {
+      toast.error("Please describe the spreadsheet database to compile.");
+      return;
+    }
+    setIsSheetGenerating(true);
+    try {
+      const sheet = await generateWorkDataSheet(sheetInput, userProfile, "NSW Rural Fire Service - Command & GIS Bureau");
+      setGeneratedSheet(sheet);
+      toast.success("Operational database sheet constructed!");
+    } catch (error) {
+      toast.error("Failed to compile spreadsheet. Please try again.");
+      console.error(error);
+    } finally {
+      setIsSheetGenerating(false);
     }
   };
 
@@ -265,64 +752,113 @@ export default function App() {
     const win = window.open('', '', 'height=700,width=900');
     if (!win) return;
     
-    win.document.write('<html><head><title>Cover Letter</title>');
-    win.document.write('<style>body{font-family:serif;padding:40px;line-height:1.6;color:#1a1a1a;} .prose p{margin-bottom:1.5em;}</style>');
-    win.document.write('</head><body>');
-    win.document.write(printContent.innerHTML);
-    win.document.write('</body></html>');
+    const templateStyles = getTemplateStyles();
+    const sanitizedCompany = companyName.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+    const sanitizedJob = jobTitle.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+    const pdfName = `CoreaGC_CvrLtr_${sanitizedCompany}_${sanitizedJob}`;
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>${pdfName}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Outfit:wght@100..900&family=Space+Grotesk:wght@300..700&display=swap');
+            
+            body { 
+              margin: 0; 
+              padding: 20mm; 
+              background: white; 
+              -webkit-print-color-adjust: exact;
+            }
+            .letter-body {
+              width: 170mm; /* A4 minus margins */
+              margin: 0 auto;
+              color: #111;
+            }
+            /* Apply template fonts */
+            .classic { font-family: 'Playfair Display', serif; }
+            .minimal { font-family: 'Outfit', sans-serif; }
+            .executive { font-family: 'Space Grotesk', sans-serif; }
+            .bold { font-family: sans-serif; }
+            .professional { font-family: sans-serif; }
+            .modern { font-family: sans-serif; }
+            
+            .prose p { margin-bottom: 1.25em; line-height: 1.6; }
+            .prose strong { font-weight: 600; color: #000; }
+            center { display: block; text-align: center; margin-bottom: 4px; }
+            
+            @page { size: A4; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div class="letter-body ${template}">
+            <div class="prose ${templateStyles.prose}">
+              ${printContent.innerHTML}
+            </div>
+          </div>
+          <script>
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+                window.close();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
     win.document.close();
-    win.print();
   };
 
   const getTemplateStyles = () => {
     switch (template) {
       case 'classic':
         return {
-          container: "max-w-[800px] shadow-2xl font-serif border-t-4 border-gray-200",
-          content: "p-12 leading-relaxed text-[16px] text-gray-900",
-          prose: "prose-serif prose-p:mb-4"
+          container: "max-w-[800px] shadow-2xl font-serif border-t-8 border-gray-800",
+          content: "p-12 leading-relaxed text-[17px] text-gray-900 font-serif",
+          prose: "prose-serif prose-p:mb-5 prose-p:leading-relaxed"
         };
       case 'minimal':
         return {
-          container: "max-w-[700px] shadow-sm border border-gray-100",
-          content: "p-8 leading-loose text-[14px] text-gray-700",
-          prose: "prose-slate prose-p:mb-3"
+          container: "max-w-[700px] shadow-sm border border-gray-100 font-outfit",
+          content: "p-8 leading-loose text-[14px] text-gray-700 font-outfit",
+          prose: "prose-slate prose-p:mb-3 font-outfit"
         };
       case 'bold':
         return {
-          container: "max-w-[800px] shadow-2xl border-t-[12px] border-primary",
-          content: "p-10 leading-snug text-[15px] font-medium",
-          prose: "prose-indigo prose-p:mb-4"
+          container: "max-w-[800px] shadow-2xl border-l-[16px] border-primary bg-primary/5",
+          content: "p-10 leading-snug text-[15px] font-medium font-sans",
+          prose: "prose-indigo prose-p:mb-4 font-sans"
         };
       case 'executive':
         return {
-          container: "max-w-[850px] shadow-2xl border-l-[40px] border-gray-800",
-          content: "p-10 leading-relaxed text-[15px] text-gray-900",
-          prose: "prose-neutral prose-p:mb-4"
+          container: "max-w-[850px] shadow-2xl border-t-[40px] border-secondary",
+          content: "p-10 leading-relaxed text-[15px] text-gray-900 font-space",
+          prose: "prose-neutral prose-p:mb-4 font-space"
         };
       case 'creative':
         return {
-          container: "max-w-[800px] shadow-2xl bg-gradient-to-br from-white to-gray-50 border-r-8 border-primary/30",
-          content: "p-10 leading-relaxed text-[15px] italic text-gray-800",
-          prose: "prose-stone prose-p:mb-4"
+          container: "max-w-[800px] shadow-2xl bg-slate-50 border-double border-4 border-primary/20",
+          content: "p-10 leading-relaxed text-[15px] text-gray-800 font-outfit",
+          prose: "prose-stone prose-p:mb-4 italic font-outfit"
         };
       case 'professional':
         return {
-          container: "max-w-[800px] shadow-xl border-y border-gray-200",
-          content: "p-10 leading-relaxed text-[15px] text-gray-900",
-          prose: "prose-zinc prose-p:mb-4"
+          container: "max-w-[800px] shadow-xl border-x border-gray-200",
+          content: "p-10 leading-relaxed text-[15px] text-gray-900 font-sans",
+          prose: "prose-zinc prose-p:mb-4 font-sans"
         };
       case 'simple':
         return {
           container: "max-w-[750px] shadow-none border-none",
-          content: "p-8 leading-normal text-[15px] text-black",
-          prose: "prose-p:mb-3"
+          content: "p-8 leading-normal text-[15px] text-black font-sans",
+          prose: "prose-p:mb-3 font-sans"
         };
       default: // modern
         return {
-          container: "max-w-[800px] shadow-2xl",
-          content: "p-10 leading-relaxed text-[15px]",
-          prose: "prose-p:mb-4"
+          container: "max-w-[800px] shadow-2xl rounded-xl overflow-hidden",
+          content: "p-10 leading-relaxed text-[15px] font-sans",
+          prose: "prose-p:mb-4 font-sans"
         };
     }
   };
@@ -337,22 +873,128 @@ export default function App() {
           <div className="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
             <FileText className="w-4 h-4 text-white" />
           </div>
-          CoverCraft AI
+          JobCrafter AI
         </div>
         <div className="flex items-center gap-4">
           <span className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-bold tracking-wider uppercase">
             PREMIUM PLAN
           </span>
-          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium border border-border">
-            {profile.name.split(' ').map(n => n[0]).join('')}
+          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium border border-border mt-0.5">
+            {userProfile.name ? userProfile.name.split(' ').map(n => n[0]).join('') : "JC"}
           </div>
         </div>
       </header>
 
+      {/* Navigation Sub-header */}
+      <div className="bg-card border-b border-border h-12 flex items-center justify-between px-8 text-sm shrink-0">
+        <div className="flex items-center gap-1 sm:gap-4 overflow-x-auto py-1">
+          <button 
+            onClick={() => setActiveView("dashboard")} 
+            className={`py-1.5 px-3 rounded-md text-[11px] font-bold tracking-wider uppercase transition-all flex items-center gap-2 shrink-0 ${activeView === "dashboard" ? "text-primary bg-primary/5 shadow-sm border border-primary/10 font-black" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <Layout className="w-3.5 h-3.5" />
+            Dashboard
+          </button>
+          <button 
+            onClick={() => setActiveView("cover")} 
+            className={`py-1.5 px-3 rounded-md text-[11px] font-bold tracking-wider uppercase transition-all flex items-center gap-2 shrink-0 ${activeView === "cover" ? "text-primary bg-primary/5 shadow-sm border border-primary/10 font-black" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Cover Letters
+          </button>
+          <button 
+            onClick={() => setActiveView("interview")} 
+            className={`py-1.5 px-3 rounded-md text-[11px] font-bold tracking-wider uppercase transition-all flex items-center gap-2 shrink-0 ${activeView === "interview" ? "text-primary bg-primary/5 shadow-sm border border-primary/10 font-black" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            Interview Hub
+          </button>
+          <button 
+            onClick={() => setActiveView("work")} 
+            className={`py-1.5 px-3 rounded-md text-[11px] font-bold tracking-wider uppercase transition-all flex items-center gap-2 shrink-0 ${activeView === "work" ? "text-primary bg-primary/5 shadow-sm border border-primary/10 font-black" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            Work Tasks & Sheets
+          </button>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+          <Cpu className="w-3 h-3 text-primary animate-pulse" />
+          Powered by Gemini 3.5 Flash
+        </div>
+      </div>
+
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-[320px] border-r border-border bg-background flex flex-col gap-8 p-6 overflow-y-auto shrink-0">
+        {activeView === "cover" && (
+          <>
+            {/* Sidebar */}
+            <aside className="w-[320px] border-r border-border bg-[#FAF9F6] flex flex-col gap-8 p-6 overflow-y-auto shrink-0 font-sans">
+          {/* Candidate Bio */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                Candidate Profile
+              </p>
+              <div className="flex gap-1">
+                 <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="w-5 h-5 text-muted-foreground hover:text-primary"
+                  title="Reset to Sample"
+                  onClick={() => {
+                    setUserProfile(sampleProfile);
+                    toast.success("Reset to sample data");
+                  }}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="w-5 h-5 text-muted-foreground hover:text-destructive"
+                  title="Clear All Info"
+                  onClick={() => {
+                    setUserProfile({
+                      name: "",
+                      email: "",
+                      phone: "",
+                      location: "",
+                      linkedin: "",
+                      summary: "",
+                      experience: [],
+                      education: [],
+                      skills: []
+                    });
+                    toast.warning("Profile cleared. Please enter your details.");
+                  }}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-secondary/30 rounded-xl border border-border space-y-3">
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold">{userProfile.name || "Unnamed Candidate"}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{userProfile.summary || "No summary provided"}</p>
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-[10px] w-full"
+                  onClick={() => {
+                    setTempProfile(userProfile);
+                    setShowProfileEdit(true);
+                  }}
+                >
+                  <Edit2 className="w-3 h-3 mr-2" />
+                  Edit Profile Details
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {/* Sources */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -554,26 +1196,48 @@ export default function App() {
           {/* Floating Actions Bar (Visible when letter exists) */}
           {generatedLetter && (
             <div className="sticky top-0 z-10 flex justify-end mb-4 animate-in fade-in slide-in-from-top-4">
-              <div className="bg-card/80 backdrop-blur-md border border-border p-1.5 rounded-full shadow-xl flex items-center gap-1">
+              <div className="bg-card/90 backdrop-blur-md border border-border p-1.5 rounded-full shadow-2xl flex items-center gap-1">
                 {!isEditing ? (
-                  <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="text-xs h-8 px-3 rounded-full">
+                  <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="text-xs h-8 px-4 rounded-full hover:bg-primary/10 hover:text-primary transition-all">
                     <Edit2 className="w-3 h-3 mr-2" />
                     Edit
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="sm" onClick={handleSaveEdit} className="text-primary hover:text-primary hover:bg-primary/10 text-xs h-8 px-3 rounded-full">
+                  <Button variant="ghost" size="sm" onClick={handleSaveEdit} className="text-primary bg-primary/10 text-xs h-8 px-4 rounded-full font-bold">
                     <Save className="w-3 h-3 mr-2" />
-                    Save
+                    Save Changes
                   </Button>
                 )}
+                <div className="w-[1px] h-4 bg-border mx-1" />
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleRemoveAiVoice} 
+                  disabled={isGenerating}
+                  className="text-primary hover:bg-primary/5 text-xs h-8 px-4 rounded-full font-bold animate-pulse-slow"
+                >
+                  {isGenerating ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Sparkles className="w-3 h-3 mr-2" />}
+                  Remove AI Voice
+                </Button>
+                <div className="w-[1px] h-4 bg-border mx-1" />
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleAnalyze} 
+                  disabled={isAnalyzing}
+                  className="text-primary hover:bg-primary/5 text-xs h-8 px-4 rounded-full font-bold"
+                >
+                  {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Wand2 className="w-3 h-3 mr-2" />}
+                  Analyze Letter
+                </Button>
                 <div className="w-[1px] h-4 bg-border mx-1" />
                 <Button variant="ghost" size="sm" onClick={handlePrint} className="text-xs h-8 px-3 rounded-full">
                   <Printer className="w-3 h-3 mr-2" />
                   Print / PDF
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => toast.info("DOCX export coming soon!")} className="text-xs h-8 px-3 rounded-full">
-                  <FileCode className="w-3 h-3 mr-2" />
-                  DOCX
+                <Button variant="ghost" size="sm" onClick={() => setShowEmailDraft(true)} className="text-xs h-8 px-3 rounded-full">
+                  <Mail className="w-3 h-3 mr-2" />
+                  Email version
                 </Button>
                 <Button variant="ghost" size="sm" onClick={copyToClipboard} className="text-xs h-8 px-3 rounded-full">
                   <Copy className="w-3 h-3 mr-2" />
@@ -777,8 +1441,75 @@ export default function App() {
           )}
 
           {/* Letter Container */}
-          <div className="flex-1 flex justify-center pb-10">
-            <div className={`w-full bg-white text-[#1a1a1a] rounded-sm flex flex-col min-h-[800px] transition-all duration-500 ${templateStyles.container}`}>
+          <div className="flex-1 flex flex-col items-center pb-10">
+            {showAnalysis && (
+              <div className="w-full max-w-4xl mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                <Card className="bg-card/50 border-primary/20 shadow-xl backdrop-blur-sm overflow-hidden">
+                  <CardHeader className="bg-primary/5 border-b border-primary/10 py-4 flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <div className="p-1.5 bg-primary/10 rounded-lg">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-bold">Smart Analysis & Suggestions</CardTitle>
+                        <CardDescription className="text-[10px]">Actionable insights based on your profile and the job description</CardDescription>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => setShowAnalysis(false)} className="h-8 w-8 rounded-full">
+                      <Plus className="w-4 h-4 rotate-45" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 divide-x divide-y divide-border/50">
+                      {isAnalyzing ? (
+                        <div className="col-span-full py-12 flex flex-col items-center justify-center space-y-4">
+                          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                          <p className="text-sm text-muted-foreground animate-pulse">Gemini is analyzing your letter...</p>
+                        </div>
+                      ) : analysisSuggestions.length > 0 ? (
+                        analysisSuggestions.map((suggestion, i) => (
+                          <div key={i} className="p-5 space-y-3 hover:bg-accent/5 transition-colors">
+                            <div className="flex items-start justify-between">
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded">
+                                {suggestion.type}
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-bold leading-tight">{suggestion.title}</h4>
+                            <p className="text-xs text-muted-foreground line-clamp-3">{suggestion.feedback}</p>
+                            <div className="pt-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-full text-[10px] h-8 border-primary/20 hover:bg-primary/10 hover:text-primary font-bold transition-all"
+                                onClick={() => {
+                                  setRefinementText(`Add/Apply: ${suggestion.action}`);
+                                  toast.info("Suggestion added to the refinement box.");
+                                  // Scroll to refinement box
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                              >
+                                Use this Suggestion
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="col-span-full py-12 text-center space-y-2">
+                          <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto" />
+                          <h4 className="font-bold">Looking Good!</h4>
+                          <p className="text-sm text-muted-foreground">No critical weaknesses detected in this draft.</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            <div 
+              id="letter-print-root"
+              className={`w-full bg-white text-[#1a1a1a] rounded-sm flex flex-col min-h-[800px] transition-all duration-500 ${templateStyles.container}`}
+            >
               {generatedLetter ? (
                 <ScrollArea className="flex-1">
                   <div 
@@ -813,8 +1544,306 @@ export default function App() {
             </div>
           </div>
         </section>
+          </>
+        )}
+
+        {activeView === "dashboard" && (
+          <DashboardView 
+            userProfile={userProfile} 
+            setActiveView={setActiveView} 
+            roles={roles}
+            activeRoleId={activeRoleId}
+            setActiveRoleId={switchActiveRole}
+            onCreateRole={handleCreateRole}
+            onUpdateRoleStatus={handleUpdateRoleStatus}
+            onDeleteRole={handleDeleteRole}
+          />
+        )}
+
+        {activeView === "interview" && (
+          <InterviewView 
+            userProfile={userProfile}
+            jobDescription={jobDescription}
+            setJobDescription={setJobDescription}
+            coverLetter={generatedLetter}
+            interviewPrepData={interviewPrepData}
+            isPrepGenerating={isPrepGenerating}
+            handleGeneratePrep={handleGeneratePrep}
+            selectedQuestionIndex={selectedQuestionIndex}
+            setSelectedQuestionIndex={setSelectedQuestionIndex}
+            userStarsAnswers={userStarsAnswers}
+            setUserStarsAnswers={setUserStarsAnswers}
+          />
+        )}
+
+        {activeView === "work" && (
+          <WorkView 
+            userProfile={userProfile}
+            workTaskDesc={workTaskDesc}
+            setWorkTaskDesc={setWorkTaskDesc}
+            selectedDocType={selectedDocType}
+            setSelectedDocType={setSelectedDocType}
+            generatedDoc={generatedDoc}
+            isDocGenerating={isDocGenerating}
+            handleGenerateWorkDocument={handleGenerateWorkDocument}
+            sheetInput={sheetInput}
+            setSheetInput={setSheetInput}
+            generatedSheet={generatedSheet}
+            isSheetGenerating={isSheetGenerating}
+            handleGenerateWorkSheet={handleGenerateWorkSheet}
+            taskInstructions={taskInstructions}
+            setTaskInstructions={setTaskInstructions}
+            taskDraftOutput={taskDraftOutput}
+            isTaskDrafting={isTaskDrafting}
+            handleGenerateTaskDraft={handleGenerateTaskDraft}
+            activeSlideIndex={activeSlideIndex}
+            setActiveSlideIndex={setActiveSlideIndex}
+          />
+        )}
       </main>
       <Toaster position="bottom-right" theme="dark" />
+      
+      {/* Email Draft Overlay */}
+      {showEmailDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl p-8 space-y-6 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => setShowEmailDraft(false)}
+              className="absolute right-6 top-6 text-muted-foreground hover:text-foreground transition-all duration-300 hover:rotate-90 p-2"
+            >
+              <Plus className="w-6 h-6 rotate-45" />
+            </button>
+            
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Mail className="w-5 h-5 text-primary" />
+                Email Application Draft
+              </h3>
+              <p className="text-sm text-muted-foreground">Short, direct version for body-of-email applications.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center justify-between">
+                  To (Email Address)
+                  <span className="text-[9px] font-normal text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded flex items-center gap-1 normal-case tracking-normal">
+                    <Edit2 className="w-2 h-2" /> Editable
+                  </span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={applicationEmail} 
+                    onChange={(e) => setApplicationEmail(e.target.value)}
+                    placeholder="Enter recipient email..."
+                    className="bg-secondary/50 border-border h-12"
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="h-12 border-border hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                    onClick={() => {
+                      if (applicationEmail) {
+                        navigator.clipboard.writeText(applicationEmail);
+                        toast.success("Recipient email copied!");
+                      } else {
+                        toast.error("No recipient email found.");
+                      }
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center justify-between">
+                  Subject Line
+                  <span className="text-[9px] font-normal text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded flex items-center gap-1 normal-case tracking-normal">
+                    <Edit2 className="w-2 h-2" /> Editable
+                  </span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={emailSubject} 
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="bg-secondary/50 border-border h-12 text-sm"
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="h-12 border-border hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                    onClick={() => {
+                      navigator.clipboard.writeText(emailSubject);
+                      toast.success("Subject copied!");
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center justify-between">
+                  Email Body
+                  <span className="text-[9px] font-normal text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded flex items-center gap-1 normal-case tracking-normal">
+                    <Edit2 className="w-2 h-2" /> Editable
+                  </span>
+                </Label>
+                <div className="relative">
+                  <Textarea 
+                    value={emailBody} 
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    className="bg-secondary/50 border-border min-h-[200px] leading-relaxed resize-none text-sm"
+                  />
+                   <Button 
+                    className="absolute bottom-4 right-4 shadow-lg transition-transform active:scale-95"
+                    onClick={() => {
+                      navigator.clipboard.writeText(emailBody);
+                      toast.success("Email body copied!");
+                    }}
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy Body
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-border flex justify-between items-center">
+              <p className="text-[11px] text-muted-foreground italic">
+                Tip: Attach your PDF version of the full cover letter if applying via email.
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    const mailto = `mailto:${applicationEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+                    window.open(mailto, '_blank');
+                  }}
+                  className="border-border hover:bg-primary/5"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open in Default Mail
+                </Button>
+                <Button variant="ghost" onClick={() => setShowEmailDraft(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Edit Overlay */}
+      {showProfileEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-card border border-border w-full max-w-3xl rounded-2xl shadow-2xl p-8 space-y-6 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <User className="w-5 h-5 text-primary" />
+                  Edit Candidate Profile
+                </h3>
+                <p className="text-sm text-muted-foreground">These details are used by the AI to tailor your letters and emails.</p>
+              </div>
+              <button 
+                onClick={() => setShowProfileEdit(false)}
+                className="text-muted-foreground hover:text-foreground transition-all duration-300 hover:rotate-90"
+              >
+                <Plus className="w-6 h-6 rotate-45" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Full Name</Label>
+                  <Input 
+                    value={tempProfile.name}
+                    onChange={(e) => setTempProfile({...tempProfile, name: e.target.value})}
+                    placeholder="Jane Doe"
+                    className="bg-secondary/50 border-border h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Email Address</Label>
+                  <Input 
+                    value={tempProfile.email}
+                    onChange={(e) => setTempProfile({...tempProfile, email: e.target.value})}
+                    placeholder="jane@example.com"
+                    className="bg-secondary/50 border-border h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Phone</Label>
+                  <Input 
+                    value={tempProfile.phone}
+                    onChange={(e) => setTempProfile({...tempProfile, phone: e.target.value})}
+                    placeholder="+61 400 000 000"
+                    className="bg-secondary/50 border-border h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Location</Label>
+                  <Input 
+                    value={tempProfile.location}
+                    onChange={(e) => setTempProfile({...tempProfile, location: e.target.value})}
+                    placeholder="Sydney, NSW"
+                    className="bg-secondary/50 border-border h-12"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">LinkedIn URL</Label>
+                <Input 
+                  value={tempProfile.linkedin}
+                  onChange={(e) => setTempProfile({...tempProfile, linkedin: e.target.value})}
+                  placeholder="linkedin.com/in/janedoe"
+                  className="bg-secondary/50 border-border h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Professional Summary</Label>
+                <Textarea 
+                  value={tempProfile.summary}
+                  onChange={(e) => setTempProfile({...tempProfile, summary: e.target.value})}
+                  placeholder="Experienced GIS Analyst with..."
+                  className="bg-secondary/50 border-border min-h-[120px] resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="space-y-4">                <div className="flex items-center justify-between border-b border-border pb-2">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Experience & Skills</Label>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Note: Full editing of individual roles and specific skills is currently done through the 'Clear' and 'Reset' buttons in the sidebar. Use the Professional Summary above to give the AI specific instructions for your 'voice'.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-border mt-8">
+
+              <Button 
+                variant="outline" 
+                onClick={() => setShowProfileEdit(false)}
+                className="px-6 h-12"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  setUserProfile(tempProfile);
+                  setShowProfileEdit(false);
+                  toast.success("Profile updated! Your next generation will use these details.");
+                }}
+                className="px-10 h-12 shadow-lg shadow-primary/20 font-bold"
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
