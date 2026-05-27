@@ -14,6 +14,51 @@ const ai = new GoogleGenAI({
 // Use the standard high-performance text model
 const TEXT_MODEL = "gemini-3.5-flash";
 
+function cleanAndParseJSON(text: string) {
+  let cleaned = text.trim();
+  
+  // Try to find markdown json codeblock
+  const jsonBlockStart = cleaned.indexOf("```json");
+  if (jsonBlockStart !== -1) {
+    const start = jsonBlockStart + 7;
+    const end = cleaned.indexOf("```", start);
+    if (end !== -1) {
+      cleaned = cleaned.substring(start, end).trim();
+    } else {
+      cleaned = cleaned.substring(start).trim();
+    }
+  } else {
+    // Try to find generic markdown codeblock
+    const codeBlockStart = cleaned.indexOf("```");
+    if (codeBlockStart !== -1) {
+      const start = codeBlockStart + 3;
+      const end = cleaned.indexOf("```", start);
+      if (end !== -1) {
+        cleaned = cleaned.substring(start, end).trim();
+      } else {
+        cleaned = cleaned.substring(start).trim();
+      }
+    }
+  }
+
+  // Fallback: If it still does not seem to start with { or [ due to greetings, extract the substring between the first { and last }
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1).trim();
+    } else {
+      const firstBracket = cleaned.indexOf("[");
+      const lastBracket = cleaned.lastIndexOf("]");
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        cleaned = cleaned.substring(firstBracket, lastBracket + 1).trim();
+      }
+    }
+  }
+  
+  return JSON.parse(cleaned);
+}
+
 export async function extractJobDetails(jobDescription: string) {
   const prompt = `
     Extract the following details from this job description:
@@ -37,10 +82,26 @@ export async function extractJobDetails(jobDescription: string) {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            companyName: { type: Type.STRING },
+            jobTitle: { type: Type.STRING },
+            keyRequirements: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            hiringManager: { type: Type.STRING },
+            coverLetterSpecifics: { type: Type.STRING },
+            companyInfo: { type: Type.STRING },
+            applicationEmail: { type: Type.STRING }
+          },
+          required: ["companyName", "jobTitle", "keyRequirements", "hiringManager", "coverLetterSpecifics", "companyInfo", "applicationEmail"]
+        }
       }
     });
     
-    return JSON.parse(response.text || "{}") as { 
+    return cleanAndParseJSON(response.text || "{}") as { 
       companyName: string; 
       jobTitle: string; 
       keyRequirements: string[]; 
@@ -177,7 +238,7 @@ export async function generateCoverLetter(
       }
     });
     
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as { 
       letter: string; 
       advice: string;
@@ -252,7 +313,7 @@ export async function removeAiVoice(
       }
     });
     
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as { letter: string; advice: string };
   } catch (error) {
     console.error("Error humanizing cover letter:", error);
@@ -307,7 +368,7 @@ export async function analyzeCoverLetter(
       }
     });
     
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as { 
       suggestions: Array<{
         type: string;
@@ -325,10 +386,11 @@ export async function analyzeCoverLetter(
 export async function generateInterviewPrep(
   jobDescription: string,
   profileData: CandidateProfile,
-  coverLetter?: string
+  coverLetter?: string,
+  customQuestions?: string
 ) {
   const prompt = `
-    You are an expert interviewer and hiring manager. Based on the job description, the candidate's personal profile and their submitted cover letter, generate a highly tailored interview prep dataset.
+    You are an expert interviewer and hiring manager. Based on the job description, the candidate's personal profile, their submitted cover letter, and any specific custom interview questions provided by the user, generate a highly tailored interview prep dataset.
     
     Candidate Profile:
     - Name: ${profileData.name}
@@ -341,38 +403,18 @@ export async function generateInterviewPrep(
     Job Description:
     ${jobDescription || "Target Job Posting"}
     
+    ${customQuestions ? `CUSTOM / PANEL GIVEN QUESTIONS TO PREPARE:\n${customQuestions}\n*Prioritarily include these custom questions in the list and synthesize outstanding STAR answers for them.*\n` : ''}
+
     TASK:
     Generate a series of interview questions with brilliant STAR answers reflecting the candidate's real-world history and portfolio wins.
     
     Include:
-    1. 2 Behavioral questions (focused on scenarios the candidate would have faced in their actual roles like technical leadership, handling tight timelines, resolving bugs, or working across departments).
-    2. 2 Technical/Domain questions (specific to the candidate's domain skills e.g., spatial databases, software architecture, specific business domains, or key tools mentioned in the job role).
-    3. Presentation strategy tips for any capability task presentations or panel slide layouts under a strict timeline.
-    4. Employer alignment briefing notes (discussing how the candidate's strengths match with the hiring organization).
+    1. If specific "CUSTOM / PANEL GIVEN QUESTIONS" have been provided above, include them in the questions list.
+    2. Add some additional general/situational questions (Behavioral or Technical) tailored to the candidate's domain skills (e.g., spatial databases, software architecture, specific business domains, or key tools mentioned in the job role).
+    3. Suggest presentation strategy tips for any capability task presentations or panel slide layouts under a strict timeline.
+    4. Provide employer alignment briefing notes.
 
-    IMPORTANT: Your response MUST be a JSON object exactly matching this structure, with valid JSON escaping:
-    {
-      "questions": [
-        {
-          "type": "Behavioral" | "Technical",
-          "question": "The question text here",
-          "starAnswer": {
-            "situation": "Detailed behavioral or technical situation adapted directly from the candidate's actual projects",
-            "task": "The specific task to be tackled in that scenario",
-            "action": "The exact actions, tools, scripting, or professional leadership shown by the candidate",
-            "result": "The quantified, validated achievements or output accomplishments from the candidate's resume highlights"
-          },
-          "coachingTips": "Key elements to emphasize when answering this live to a selection panel"
-        }
-      ],
-      "presentationTips": [
-        {
-          "title": "Tips on slide layouts or briefing delivery",
-          "detail": "Actionable detail customized for this candidate"
-        }
-      ],
-      "insightSummary": "Brief alignment summary showing how candidate's profile fits the company"
-    }
+    Ensure you generate at least 4 highly customized questions with structured STAR answers.
   `;
 
   try {
@@ -381,10 +423,50 @@ export async function generateInterviewPrep(
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            questions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  type: { type: Type.STRING },
+                  question: { type: Type.STRING },
+                  starAnswer: {
+                    type: Type.OBJECT,
+                    properties: {
+                      situation: { type: Type.STRING },
+                      task: { type: Type.STRING },
+                      action: { type: Type.STRING },
+                      result: { type: Type.STRING }
+                    },
+                    required: ["situation", "task", "action", "result"]
+                  },
+                  coachingTips: { type: Type.STRING }
+                },
+                required: ["type", "question", "starAnswer", "coachingTips"]
+              }
+            },
+            presentationTips: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  detail: { type: Type.STRING }
+                },
+                required: ["title", "detail"]
+              }
+            },
+            insightSummary: { type: Type.STRING }
+          },
+          required: ["questions", "presentationTips", "insightSummary"]
+        }
       }
     });
 
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as {
       questions: Array<{
         type: string;
@@ -451,7 +533,7 @@ export async function evaluateInterviewResponse(
       }
     });
 
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as {
       score: number;
       critique: string;
@@ -493,23 +575,7 @@ export async function generateCapabilityTaskDraft(
       Each slide must include a title, beautiful bullet points, detailed layout visual suggestion instructions, and slide presenter spoken notes.
     - If "report": Create a highly polished, professional policy statement, briefing note, or standard operating procedure (SOP) with structured sections, exact technical steps, action plans, and recommendations.
 
-    IMPORTANT: Your response MUST be a JSON object exactly matching this structure:
-    {
-      "outputType": "${outputType}",
-      "title": "Brief/Presentation Title",
-      "subtitle": "Subtitle or context description",
-      "slides": [
-        {
-          "slideNumber": 1,
-          "title": "Slide Title",
-          "content": ["Key bullet point 1", "Key bullet point 2", "Key bullet point 3"],
-          "designSuggestion": "How to style this slide visually (e.g. Grid layout, high contrast graphic focus)",
-          "presenterNotes": "Spoken script or points to expand upon during presentation"
-        }
-      ],
-      "reportMarkdown": "The full polished report in Markdown format (applicable if outputType is report)",
-      "coachingNotes": "Suggestions for handling questions on this task from the panel"
-    }
+    IMPORTANT: Your response MUST be a JSON object matching the requested structure.
   `;
 
   try {
@@ -518,10 +584,38 @@ export async function generateCapabilityTaskDraft(
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            outputType: { type: Type.STRING },
+            title: { type: Type.STRING },
+            subtitle: { type: Type.STRING },
+            slides: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  slideNumber: { type: Type.INTEGER },
+                  title: { type: Type.STRING },
+                  content: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                  },
+                  designSuggestion: { type: Type.STRING },
+                  presenterNotes: { type: Type.STRING }
+                },
+                required: ["slideNumber", "title", "content", "designSuggestion", "presenterNotes"]
+              }
+            },
+            reportMarkdown: { type: Type.STRING },
+            coachingNotes: { type: Type.STRING }
+          },
+          required: ["outputType", "title", "subtitle", "coachingNotes"]
+        }
       }
     });
 
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as {
       outputType: string;
       title: string;
@@ -545,16 +639,17 @@ export async function generateCapabilityTaskDraft(
 export async function generateWorkDataSheet(
   taskDescription: string,
   profileData: CandidateProfile,
-  context?: string
+  context?: string,
+  jobDescription?: string
 ) {
   const prompt = `
-    You are an expert data architect and spreadsheet modeler. Based on the user's operational request and their profile details, generate a structured, highly valuable spreadsheet dataset.
+    You are an expert data architect and spreadsheet modeler. Based on the user's operational request, their profile details, and the target role context, generate a structured, highly valuable spreadsheet dataset.
     
     Operational Request:
     ${taskDescription}
     
-    Job Context:
-    ${context || "Target Organization / Analytical Division"}
+    Target Role / Job Context:
+    ${jobDescription || context || "Target Organization / Analytical Division"}
 
     Candidate Profile Focus:
     - Name: ${profileData.name}
@@ -563,22 +658,6 @@ export async function generateWorkDataSheet(
     TASK:
     Generate a full spreadsheet data grid. Avoid mock placeholders like "A1", "B2" or "placeholder_val". 
     Populate it with robust, realistic domain entries, performance metrics, compliance status, resource tracking parameters, or database keys representing high-quality realistic outputs.
-    
-    IMPORTANT: Your response MUST be a JSON object exactly matching this structure, with proper JSON escaping:
-    {
-      "sheetTitle": "Spreadsheet Table Name",
-      "sheetDescription": "Detailed overview of spatial/structural metrics",
-      "headers": ["Column 1", "Column 2", "Column 3", "Column 4", "Column 5"],
-      "rows": [
-        ["Row 1 Col 1", "Row 1 Col 2", "Row 1 Col 3", "Row 1 Col 4", "Row 1 Col 5"],
-        ["Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3", "Row 2 Col 4", "Row 2 Col 5"]
-      ],
-      "summaryStats": {
-        "label": "Brief Label of summary",
-        "value": "Total value representation"
-      },
-      "professionalInsight": "How this structural data sheet ensures robust compliance or operations."
-    }
   `;
 
   try {
@@ -587,10 +666,38 @@ export async function generateWorkDataSheet(
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            sheetTitle: { type: Type.STRING },
+            sheetDescription: { type: Type.STRING },
+            headers: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            rows: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              }
+            },
+            summaryStats: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING },
+                value: { type: Type.STRING }
+              },
+              required: ["label", "value"]
+            },
+            professionalInsight: { type: Type.STRING }
+          },
+          required: ["sheetTitle", "sheetDescription", "headers", "rows", "professionalInsight"]
+        }
       }
     });
 
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as {
       sheetTitle: string;
       sheetDescription: string;
@@ -608,11 +715,15 @@ export async function generateWorkDataSheet(
 export async function generateWorkDocument(
   taskDescription: string,
   profileData: CandidateProfile,
-  documentType: string
+  documentType: string,
+  jobDescription?: string
 ) {
   const prompt = `
-    You are an expert Spatial Architect and Technical Briefing coordinator. Draft an elite, production-grade professional document based on the request.
+    You are an expert Spatial Architect and Technical Briefing coordinator. Draft an elite, production-grade professional document based on the request and the target job context.
     
+    Target Job Context:
+    ${jobDescription || "Target Organization / Recruitment Drive"}
+
     Document Request:
     ${taskDescription}
     
@@ -626,9 +737,6 @@ export async function generateWorkDocument(
     TASK:
     Draft a comprehensive, highly detailed standard document. 
     Include highly structured sections, standard templates (e.g. Purpose, Scope, Procedures, Quality Audits, Reference Projects), referencing actual technical steps, parameters, and actionable recommendations.
-    
-    IMPORTANT: Your response MUST be a JSON object with this key:
-    "markdownContent": "The drafted document in beautiful Markdown format"
   `;
 
   try {
@@ -637,10 +745,17 @@ export async function generateWorkDocument(
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            markdownContent: { type: Type.STRING }
+          },
+          required: ["markdownContent"]
+        }
       }
     });
 
-    const result = JSON.parse(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}");
     return result as { markdownContent: string };
   } catch (error) {
     console.error("Error in generateWorkDocument:", error);

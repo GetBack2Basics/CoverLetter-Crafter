@@ -53,4 +53,5 @@ export interface JobRole {
   generatedDoc?: string;
   sheetInput?: string;
   generatedSheet?: any;
+  customQuestions?: string;
 }

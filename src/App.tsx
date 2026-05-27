@@ -62,7 +62,131 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
-import { DashboardView, InterviewView, WorkView } from "./components/Workspaces";
+import { DashboardView } from "./components/DashboardView";
+import { InterviewView } from "./components/InterviewView";
+import { WorkView } from "./components/WorkView";
+
+const DEFAULT_RFS_PREP_DATA = {
+  insightSummary: "Highly aligned candidate with practical geocentric datum transition experience and Python scripting expertise suited for NSW Rural Fire Service's Spatial GIS Analyst requirements.",
+  questions: [
+    {
+      type: "Behavioral",
+      question: "Can you describe a time when you had to automate spatial data processing layers using Python?",
+      starAnswer: {
+        situation: "At my previous geospatial role, our incident response team was processing spatial grids manually, leading to delays.",
+        task: "I was tasked with building a robust spatial automation script to convert and buffer emergency coordinate entries.",
+        action: "I wrote a customized Python automation pipeline that processed coordinates, applied correct spatial hazard buffers, and sent alerts.",
+        result: "This eliminated human errors, reduced coordinate ingestion lag by over 45%, and ensured real-time buffering readiness."
+      },
+      coachingTips: "Focus heavily on mentioning Python libraries like ArcPy or GeoPandas and highlight the quantified 45% lag reduction."
+    },
+    {
+      type: "Technical",
+      question: "How do you handle a geocentric datum transformation, such as converting datasets from GDA94 to GDA2020?",
+      starAnswer: {
+        situation: "Our emergency dispatch system was operating on legacy GDA94 datum, while regional sensors transitioned to modern GDA2020 coordinates.",
+        task: "I had to spearhead a datum conversion for all 50 dispatch zones without corrupting geospatial layer integrity or offline data syncs.",
+        action: "Using 7-parameter conformal transformation grids in Python, I automated the shifts, verified offset tolerances, and updated the metadata headers.",
+        result: "This completely synchronized our regional warning indicators, resulting in sub-meter positioning accuracy across NSW dispatch lines."
+      },
+      coachingTips: "Elaborate on the 7-parameter transformation and the importance of coordinate precision in volunteer firefighter dispatch workflows."
+    },
+    {
+      type: "Behavioral",
+      question: "How do you explain complex coordinate offsets and geocentric shifts to local volunteer firefighters or non-technical members?",
+      starAnswer: {
+        situation: "Local command terminals experienced slight map errors due to inconsistent GDA94 and GDA2020 datums, confusing volunteer brigade captains.",
+        task: "I had to bridge the gap and clarify how coordinate grid conversions affect live mobile tracking.",
+        action: "I designed a simple visual coordinate-overlay interface, and drafted a clear, non-technical SOP guide translating datum error shifts into physical buffer sizes on maps (e.g., a 1.8-meter shift).",
+        result: "This immediately improved volunteer map navigation accuracy and boosted situational fire ground confidence during active containment campaigns."
+      },
+      coachingTips: "Emphasize your user-empathy and ability to simplify complex spatial terminology for active operational workers."
+    },
+    {
+      type: "Technical",
+      question: "How do you ensure data integrity for emergency coordinates during active, high-pressure incident command grids mapping?",
+      starAnswer: {
+        situation: "During an active fire hazard season, coordinates were ingested from multiple channels under tight limits, threatening map alignment.",
+        task: "I had to establish a secure database schema to validate and filter incoming emergency sensor coordinates in real-time.",
+        action: "I developed automated validation rules checking format errors and applying spatial buffering filters on live layers.",
+        result: "This secured 100% database synchronization reliability and prevented duplicate incident reports from misaligning command maps."
+      },
+      coachingTips: "Reference GIS validation rules, spatial indexing techniques, and database trigger scripts that enforce geospatial rules under pressure."
+    }
+  ]
+};
+
+const DEFAULT_RFS_TASK_DRAFT = {
+  outputType: "slides",
+  title: "NSW RFS GIS Automation Strategy",
+  subtitle: "Transitioning dispatch operations from GDA94 to GDA2020",
+  slides: [
+    {
+      slideNumber: 1,
+      title: "GDA94 to GDA2020 Transition Scope",
+      content: [
+        "Analyzing 50 regional command coordinates",
+        "Assessing offset shifts (approx. 1.5 to 1.8 meters across Australia)",
+        "Reviewing legacy systems and ArcPy batch scripts compatibility"
+      ],
+      designSuggestion: "Two-column grid layout, high-contrast dark forest green theme, prominent warning badge.",
+      presenterNotes: "Good morning selection panel. Today I will outline our transition plan mapping legacy GDA94 coordinates to GDA2020 for NSW RFS."
+    },
+    {
+      slideNumber: 2,
+      title: "Automated Shift Scripting Engine",
+      content: [
+        "Developing automated Python/ArcPy datum transformation filters",
+        "Deploying local conformal NTv2 grid file integration",
+        "Establishing verification checks on incoming coordinate arrays"
+      ],
+      designSuggestion: "Syntax-highlighted code drawer on the right, high contrast metrics.",
+      presenterNotes: "By leveraging ArcPy automation, we convert 50 regional dispatch streams in under 3 seconds, preserving emergency spatial safety margins."
+    }
+  ],
+  coachingNotes: "Be ready to answer questions about coordinate precision and Python transformation grids under active fire hazard conditions."
+};
+
+const DEFAULT_RFS_GENERATED_SHEET = {
+  sheetTitle: "NSW RFS GDA94 to GDA2020 Conversion Matrix",
+  sheetDescription: "Analytical coordinates, centroid shift errors, and validation compliance across 50 dispatch zones.",
+  headers: ["Site ID", "GDA94 Easting", "GDA2020 Easting", "Shift Delta (m)", "Validation Status"],
+  rows: [
+    ["RFS-01-Sydney", "334125.42", "334126.85", "1.43", "Compliant"],
+    ["RFS-02-BlueMtn", "289124.11", "289125.68", "1.57", "Compliant"],
+    ["RFS-03-Newcastle", "375902.50", "375904.02", "1.52", "Compliant"],
+    ["RFS-04-Wollongong", "302144.18", "302145.71", "1.53", "Compliant"],
+    ["RFS-05-CoffsHr", "512401.88", "512403.49", "1.61", "Compliant"]
+  ],
+  summaryStats: {
+    label: "Average Shift Error",
+    value: "1.53 meters"
+  },
+  professionalInsight: "Synthesized 100% transformation success. Safe sub-meter operational precision maintained for volunteer map buffers."
+};
+
+const DEFAULT_RFS_GENERATED_DOC = `# NSW Rural Fire Service — Operational SOP
+## Protocol 102: Geocentric Datum Transformation Procedures
+
+### 1. Purpose
+This Standard Operating Procedure (SOP) defines the validation and execution standards for translating emergency dispatch coordinates from the legacy **GDA94** to the modern **GDA2020** datum. High accuracy is essential to prevent spatial coordinate misalignment during multi-agency bushfire containment grids.
+
+### 2. Scope
+Applies to all GIS personnel, Spatial Analysts, and Incident Command Systems coordinators operating within the NSW Rural Fire Service Command & GIS Bureau.
+
+### 3. Transformation Standards
+- **Grid Reference**: Only use nationally recognized NTv2 shift grids.
+- **Verification Rule**: All converted dispatch sites must be verified to have spatial errors under 0.05 meters compared to control points.
+- **Error Limits**: Shifts exceeding 1.8 meters must be flagged for manual coordinate audit.
+
+### 4. Technical Workflow
+1. **Intake**: Export legacy GDA94 shapefiles from dispatch databases.
+2. **Execute**: Run the \`rfs_datum_shift.py\` script to perform transformation mapping.
+3. **Verify**: Apply automated validation test scripts using pre-defined coordinate targets.
+
+---
+*Authored by: George Chandeep Corea, GIS Spatial Analyst candidate*`;
+
 
 export default function App() {
   const [activeView, setActiveView] = useState<"dashboard" | "cover" | "interview" | "work">("dashboard");
@@ -89,6 +213,7 @@ export default function App() {
   const [sheetInput, setSheetInput] = useState("");
   const [generatedSheet, setGeneratedSheet] = useState<any>(null);
   const [isSheetGenerating, setIsSheetGenerating] = useState(false);
+  const [activeWorkTab, setActiveWorkTab] = useState<"slides" | "sheets" | "docs">("slides");
 
   const [companyName, setCompanyName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -98,6 +223,7 @@ export default function App() {
   const [companyInfo, setCompanyInfo] = useState("");
   const [keyRequirements, setKeyRequirements] = useState<string[]>([]);
   const [jobDescription, setJobDescription] = useState("");
+  const [customQuestions, setCustomQuestions] = useState("");
   const [userProfile, setUserProfile] = useState<CandidateProfile>(sampleProfile);
   const [isExtracting, setIsExtracting] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -132,7 +258,20 @@ export default function App() {
     const saved = localStorage.getItem("jobcrafter_roles");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Map elements to inject mock data fallback so they are complete
+        return parsed.map((r: any) => {
+          if (r.id === "default-rfs-campaign") {
+            return {
+              ...r,
+              interviewPrepData: r.interviewPrepData || DEFAULT_RFS_PREP_DATA,
+              taskDraftOutput: r.taskDraftOutput || DEFAULT_RFS_TASK_DRAFT,
+              generatedDoc: r.generatedDoc || DEFAULT_RFS_GENERATED_DOC,
+              generatedSheet: r.generatedSheet || DEFAULT_RFS_GENERATED_SHEET,
+            };
+          }
+          return r;
+        });
       } catch (e) {
         console.error("Error parsing saved roles", e);
       }
@@ -156,7 +295,12 @@ export default function App() {
           "Specialized disaster management and fire hazard spatial buffering SOP layout"
         ],
         taskInstructions: "Capability Task 1: Spatial incident command system coordinates grid sensor mapping SOP.\nCapability Task 2: GDA94 to GDA2020 conversion python script presentation.",
-        workTaskDesc: "Spatial automation script to convert coordinate inputs from GDA94 to GDA2020 datum across 50 dispatch points."
+        workTaskDesc: "Spatial automation script to convert coordinate inputs from GDA94 to GDA2020 datum across 50 dispatch points.",
+        sheetInput: "Table outlining GDA94 geocentric coordinates, GDA2020 coordinate shifts, geocentric error tolerances, and transform status metrics across 50 regional dispatch sites.",
+        interviewPrepData: DEFAULT_RFS_PREP_DATA,
+        taskDraftOutput: DEFAULT_RFS_TASK_DRAFT,
+        generatedDoc: DEFAULT_RFS_GENERATED_DOC,
+        generatedSheet: DEFAULT_RFS_GENERATED_SHEET,
       },
       {
         id: "default-dcceew-campaign",
@@ -222,6 +366,7 @@ export default function App() {
             generatedDoc,
             sheetInput,
             generatedSheet,
+            customQuestions,
           };
         }
         return r;
@@ -233,6 +378,7 @@ export default function App() {
         setCompanyName(targetRole.companyName || "");
         setJobTitle(targetRole.jobTitle || "");
         setJobDescription(targetRole.jobDescription || "");
+        setCustomQuestions(targetRole.customQuestions || "");
         setApplicationEmail(targetRole.applicationEmail || "");
         setHiringManager(targetRole.hiringManager || "");
         setCoverLetterSpecifics(targetRole.coverLetterSpecifics || "");
@@ -287,6 +433,7 @@ export default function App() {
       setGeneratedDoc(activeRole.generatedDoc || "");
       setSheetInput(activeRole.sheetInput || "");
       setGeneratedSheet(activeRole.generatedSheet || null);
+      setCustomQuestions(activeRole.customQuestions || "");
     }
   }, []);
 
@@ -316,7 +463,8 @@ export default function App() {
           currentRole.selectedDocType !== selectedDocType ||
           currentRole.generatedDoc !== generatedDoc ||
           currentRole.sheetInput !== sheetInput ||
-          JSON.stringify(currentRole.generatedSheet) !== JSON.stringify(generatedSheet);
+          JSON.stringify(currentRole.generatedSheet) !== JSON.stringify(generatedSheet) ||
+          currentRole.customQuestions !== customQuestions;
 
         if (!hasChange) return prevRoles;
       }
@@ -346,6 +494,7 @@ export default function App() {
             generatedDoc,
             sheetInput,
             generatedSheet,
+            customQuestions,
           };
         }
         return r;
@@ -376,7 +525,8 @@ export default function App() {
     selectedDocType,
     generatedDoc,
     sheetInput,
-    generatedSheet
+    generatedSheet,
+    customQuestions
   ]);
 
   const handleCreateRole = (cmp: string, title: string, desc: string) => {
@@ -667,7 +817,7 @@ export default function App() {
   const handleGeneratePrep = async () => {
     setIsPrepGenerating(true);
     try {
-      const prep = await generateInterviewPrep(jobDescription, userProfile, generatedLetter);
+      const prep = await generateInterviewPrep(jobDescription, userProfile, generatedLetter, customQuestions);
       setInterviewPrepData(prep);
       setSelectedQuestionIndex(0);
       toast.success("Tailored RFS Interview Prep Guide compiled!");
@@ -705,7 +855,7 @@ export default function App() {
     }
     setIsDocGenerating(true);
     try {
-      const doc = await generateWorkDocument(workTaskDesc, userProfile, selectedDocType);
+      const doc = await generateWorkDocument(workTaskDesc, userProfile, selectedDocType, jobDescription);
       setGeneratedDoc(doc.markdownContent);
       toast.success("Operational SOP draft constructed!");
     } catch (error) {
@@ -723,7 +873,7 @@ export default function App() {
     }
     setIsSheetGenerating(true);
     try {
-      const sheet = await generateWorkDataSheet(sheetInput, userProfile, "NSW Rural Fire Service - Command & GIS Bureau");
+      const sheet = await generateWorkDataSheet(sheetInput, userProfile, "NSW Rural Fire Service - Command & GIS Bureau", jobDescription);
       setGeneratedSheet(sheet);
       toast.success("Operational database sheet constructed!");
     } catch (error) {
@@ -1557,6 +1707,7 @@ export default function App() {
             onCreateRole={handleCreateRole}
             onUpdateRoleStatus={handleUpdateRoleStatus}
             onDeleteRole={handleDeleteRole}
+            setActiveWorkTab={setActiveWorkTab}
           />
         )}
 
@@ -1564,7 +1715,8 @@ export default function App() {
           <InterviewView 
             userProfile={userProfile}
             jobDescription={jobDescription}
-            setJobDescription={setJobDescription}
+            customQuestions={customQuestions}
+            setCustomQuestions={setCustomQuestions}
             coverLetter={generatedLetter}
             interviewPrepData={interviewPrepData}
             isPrepGenerating={isPrepGenerating}
@@ -1573,12 +1725,14 @@ export default function App() {
             setSelectedQuestionIndex={setSelectedQuestionIndex}
             userStarsAnswers={userStarsAnswers}
             setUserStarsAnswers={setUserStarsAnswers}
+            setInterviewPrepData={setInterviewPrepData}
           />
         )}
 
         {activeView === "work" && (
           <WorkView 
             userProfile={userProfile}
+            jobDescription={jobDescription}
             workTaskDesc={workTaskDesc}
             setWorkTaskDesc={setWorkTaskDesc}
             selectedDocType={selectedDocType}
@@ -1598,6 +1752,8 @@ export default function App() {
             handleGenerateTaskDraft={handleGenerateTaskDraft}
             activeSlideIndex={activeSlideIndex}
             setActiveSlideIndex={setActiveSlideIndex}
+            activeWorkTab={activeWorkTab}
+            setActiveWorkTab={setActiveWorkTab}
           />
         )}
       </main>
