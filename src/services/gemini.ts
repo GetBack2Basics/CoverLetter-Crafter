@@ -14,6 +14,8 @@ const ai = new GoogleGenAI({
 // Use the standard high-performance text model
 const TEXT_MODEL = "gemini-3.5-flash";
 
+export const AI_STATEMENT_TEXT = "The author(s) utilized artificial intelligence to optimize internal administrative efficiencies, such as compiling trends and spatial information. In alignment with national responsible AI frameworks, we do not deploy AI for automated decision-making. Human oversight is strictly maintained for all outcomes affecting the community.";
+
 function cleanAndParseJSON(text: string) {
   let cleaned = text.trim();
   
@@ -348,15 +350,7 @@ export async function analyzeCoverLetter(
     3. Achievement Gaps: What specific achievement from the candidate's profile would have more impact if included/expanded?
     4. Structural Weakness: Is the opening or closing weak?
     
-    IMPORTANT: Your response MUST be a JSON object with this key:
-    "suggestions": [
-      {
-        "type": "Missing Detail" | "Tone & Voice" | "Achievement Gap" | "Technical Keyword",
-        "title": "Short descriptive title",
-        "feedback": "Detailed explanation of the issue",
-        "action": "Specific suggestion on what to add or change"
-      }
-    ]
+    IMPORTANT: Your response MUST conform to the response schema.
   `;
 
   try {
@@ -365,6 +359,25 @@ export async function analyzeCoverLetter(
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            suggestions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  type: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  feedback: { type: Type.STRING },
+                  action: { type: Type.STRING }
+                },
+                required: ["type", "title", "feedback", "action"]
+              }
+            }
+          },
+          required: ["suggestions"]
+        }
       }
     });
     
@@ -387,10 +400,22 @@ export async function generateInterviewPrep(
   jobDescription: string,
   profileData: CandidateProfile,
   coverLetter?: string,
-  customQuestions?: string
+  customQuestions?: string,
+  associatedAssets?: {
+    generatedDoc?: string;
+    generatedSheet?: any;
+    taskDraftOutput?: any;
+  }
 ) {
+  const assetsText = associatedAssets ? `
+    ASSOCIATED TECHNICAL PORTFOLIO ASSETS BUILT BY CANDIDATE:
+    ${associatedAssets.generatedDoc ? `- Operational Document (SOP/Brief): ${associatedAssets.generatedDoc.substring(0, 600)}` : ""}
+    ${associatedAssets.generatedSheet ? `- Generated Spreadsheet Matrix: ${associatedAssets.generatedSheet.sheetTitle || ""} - ${associatedAssets.generatedSheet.sheetDescription || ""}` : ""}
+    ${associatedAssets.taskDraftOutput ? `- Slide Deck Capability Task Presentation: ${associatedAssets.taskDraftOutput.title || ""} - ${associatedAssets.taskDraftOutput.subtitle || ""}` : ""}
+  ` : "";
+
   const prompt = `
-    You are an expert interviewer and hiring manager. Based on the job description, the candidate's personal profile, their submitted cover letter, and any specific custom interview questions provided by the user, generate a highly tailored interview prep dataset.
+    You are an expert interviewer, executive recruiter, and hiring manager. Based on the job description, the candidate's personal profile, their submitted cover letter, any custom interview questions provided by the user, and the custom technical portfolio assets generated for the campaign, produce a comprehensive, elite interview preparation dataset.
     
     Candidate Profile:
     - Name: ${profileData.name}
@@ -405,16 +430,34 @@ export async function generateInterviewPrep(
     
     ${customQuestions ? `CUSTOM / PANEL GIVEN QUESTIONS TO PREPARE:\n${customQuestions}\n*Prioritarily include these custom questions in the list and synthesize outstanding STAR answers for them.*\n` : ''}
 
-    TASK:
-    Generate a series of interview questions with brilliant STAR answers reflecting the candidate's real-world history and portfolio wins.
-    
-    Include:
-    1. If specific "CUSTOM / PANEL GIVEN QUESTIONS" have been provided above, include them in the questions list.
-    2. Add some additional general/situational questions (Behavioral or Technical) tailored to the candidate's domain skills (e.g., spatial databases, software architecture, specific business domains, or key tools mentioned in the job role).
-    3. Suggest presentation strategy tips for any capability task presentations or panel slide layouts under a strict timeline.
-    4. Provide employer alignment briefing notes.
+    ${assetsText}
 
-    Ensure you generate at least 4 highly customized questions with structured STAR answers.
+    TASK:
+    Generate a highly tailored interview prep package. Include:
+    1. Tailored Interview questions (at least 4) with robust STAR answers mapping directly to the candidate's actual qualifications and the prepared technical assets.
+    2. Employer alignment briefing notes and presentation strategy tips.
+    3. Technical Skill Presentation Guide ("presentationSlides"): Generate 4 to 5 structured slides detailing their analytical presentation approach. For each slide:
+       - slideNumber: Short identifier (e.g. "Slide 1")
+       - title: Crisp, focus-driven title (e.g., "The Spatial Challenge & Data Architecture Setup")
+       - visualLayout: Widescreen mockup suggestions (e.g., "Two-column grid layout showing target regional centroids on left, conformal shift equations on right")
+       - speakerNotes: Complete copy-pasteable spoken word script in first person ("I") for the candidate to read or practice out loud. (Ensure this relates explicitly to the job, department, and generated campaigns)
+       - pacingAdvice: Practical coaching note (e.g., "Speak with slow, deliberate gravitas. Pause after demonstrating the sub-meter precision to let the panel absorb the safety alignment.")
+       - timingMinutes: Approximate timeline slot (e.g., "1.5 Minutes" or "0:00 - 2:00")
+    4. Simulated Hiring Panelists: Generate EXACTLY 3 highly realistic, distinct hiring panel members tailored specifically to the company and department in the job posting (e.g. Panel Chair/HR, Technical SME/Data Lead, Operations/Director). For each panelist, generate:
+       - name: A realistic full name (do not use Jos, Carlos, or Susan).
+       - role: Stated title in the company.
+       - org: Stated organization.
+       - backstory: Professional history summary.
+       - tactic: Strategic tactical advice for how the candidate should communicate with them.
+       - linkedinSearchSim: Simulated active topics they share in their field.
+       - suggestedQuestions: An array of 1-2 custom candidate-led Q&A questions matching their profile.
+    5. Structured Elevator Pitch: Outline the 5 strategic benchmarks/landmarks of the first 5 minutes of introduction (Passion, Community, Experience, Current, Value). For each benchmark, generate:
+       - subtitle: An action subtitle heading.
+       - paragraph: A polished, spoken-form story paragraph written in first person ("I") linking their skills/experience to this job and assets.
+       - coaching: Coaching advice on how to deliver that point.
+    6. Strategic Long-Form AI Statement: Create a personalized, job-specific long-form explanation speech responding to "How did you use AI specifically to build these assets and structure your work, and how did you maintain administrative accountability?". In the script, explicitly refer to the job role, the specific organization name, and the associated assets (such as the custom SOP/Operational document, spreadsheet matrix, or capabilitity sli-deck), asserting meticulous human validation/agency and transparent governance over any helper tools (like Grok, ChatGPT, or Gemini). Also generate 3 bullet points of why this approach wins.
+
+    IMPORTANT: Your response MUST be valid JSON matching the requested schema.
   `;
 
   try {
@@ -459,9 +502,105 @@ export async function generateInterviewPrep(
                 required: ["title", "detail"]
               }
             },
-            insightSummary: { type: Type.STRING }
+            presentationSlides: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  slideNumber: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  visualLayout: { type: Type.STRING },
+                  speakerNotes: { type: Type.STRING },
+                  pacingAdvice: { type: Type.STRING },
+                  timingMinutes: { type: Type.STRING }
+                },
+                required: ["slideNumber", "title", "visualLayout", "speakerNotes", "pacingAdvice", "timingMinutes"]
+              }
+            },
+            insightSummary: { type: Type.STRING },
+            simulatedPanelists: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  role: { type: Type.STRING },
+                  org: { type: Type.STRING },
+                  backstory: { type: Type.STRING },
+                  tactic: { type: Type.STRING },
+                  linkedinSearchSim: { type: Type.STRING },
+                  suggestedQuestions: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                  }
+                },
+                required: ["name", "role", "org", "backstory", "tactic", "linkedinSearchSim", "suggestedQuestions"]
+              }
+            },
+            elevatorPitch: {
+              type: Type.OBJECT,
+              properties: {
+                passion: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subtitle: { type: Type.STRING },
+                    paragraph: { type: Type.STRING },
+                    coaching: { type: Type.STRING }
+                  },
+                  required: ["subtitle", "paragraph", "coaching"]
+                },
+                community: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subtitle: { type: Type.STRING },
+                    paragraph: { type: Type.STRING },
+                    coaching: { type: Type.STRING }
+                  },
+                  required: ["subtitle", "paragraph", "coaching"]
+                },
+                experience: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subtitle: { type: Type.STRING },
+                    paragraph: { type: Type.STRING },
+                    coaching: { type: Type.STRING }
+                  },
+                  required: ["subtitle", "paragraph", "coaching"]
+                },
+                current: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subtitle: { type: Type.STRING },
+                    paragraph: { type: Type.STRING },
+                    coaching: { type: Type.STRING }
+                  },
+                  required: ["subtitle", "paragraph", "coaching"]
+                },
+                value: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subtitle: { type: Type.STRING },
+                    paragraph: { type: Type.STRING },
+                    coaching: { type: Type.STRING }
+                  },
+                  required: ["subtitle", "paragraph", "coaching"]
+                }
+              },
+              required: ["passion", "community", "experience", "current", "value"]
+            },
+            aiStatement: {
+              type: Type.OBJECT,
+              properties: {
+                answerScript: { type: Type.STRING },
+                whyWinsBulletPoints: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                }
+              },
+              required: ["answerScript", "whyWinsBulletPoints"]
+            }
           },
-          required: ["questions", "presentationTips", "insightSummary"]
+          required: ["questions", "presentationTips", "presentationSlides", "insightSummary", "simulatedPanelists", "elevatorPitch", "aiStatement"]
         }
       }
     });
@@ -475,7 +614,35 @@ export async function generateInterviewPrep(
         coachingTips: string;
       }>;
       presentationTips: Array<{ title: string; detail: string }>;
+      presentationSlides?: Array<{
+        slideNumber: string;
+        title: string;
+        visualLayout: string;
+        speakerNotes: string;
+        pacingAdvice: string;
+        timingMinutes: string;
+      }>;
       insightSummary: string;
+      simulatedPanelists?: Array<{
+        name: string;
+        role: string;
+        org: string;
+        backstory: string;
+        tactic: string;
+        linkedinSearchSim: string;
+        suggestedQuestions: string[];
+      }>;
+      elevatorPitch?: {
+        passion: { subtitle: string; paragraph: string; coaching: string };
+        community: { subtitle: string; paragraph: string; coaching: string };
+        experience: { subtitle: string; paragraph: string; coaching: string };
+        current: { subtitle: string; paragraph: string; coaching: string };
+        value: { subtitle: string; paragraph: string; coaching: string };
+      };
+      aiStatement?: {
+        answerScript: string;
+        whyWinsBulletPoints: string[];
+      };
     };
   } catch (error) {
     console.error("Error in generateInterviewPrep:", error);
@@ -550,14 +717,39 @@ export async function generateCapabilityTaskDraft(
   taskInstructions: string,
   profileData: CandidateProfile,
   jobDescription: string,
-  outputType: "slides" | "report"
+  outputType: "slides" | "report",
+  sources?: Array<{ type: string; name: string }>,
+  iterativeFeedback?: string,
+  currentDraft?: any,
+  selectedText?: string
 ) {
+  const sourcesText = sources && sources.length > 0 
+    ? sources.map(s => `- [Source doc/URL: ${s.type}] ${s.name}`).join('\n')
+    : "No external reference documents or URLs provided.";
+
+  const refinementBlock = iterativeFeedback 
+    ? `
+    REFINEMENT / ITERATIVE REGENERATION REQUEST:
+    The user is asking to modify or regenerate part of the existing slides/document.
+    - Specific instruction: "${iterativeFeedback}"
+    ${selectedText ? `- Selected portion of text to rewrite/target: "${selectedText}"` : ""}
+    - Current Draft content to modify: ${JSON.stringify(currentDraft || {})}
+    
+    CRITICAL: Modify the current draft to satisfy the instruction, targeting any specified selected text. Maintain the overall structure and keep unchanged sections intact.
+    `
+    : "";
+
   const prompt = `
     You are an expert executive briefing officer and spatial/technical platform coordinator. Convert the provided Capability Task / Work Task instructions into an elite outline draft based on the candidate's actual qualifications.
     
     Task Instructions/Prompt:
     ${taskInstructions}
 
+    REFERENCE SOURCES & REFERENCE DOCUMENTS (Use these as factual guidelines, source references, coordinate values, or formatting inputs):
+    ${sourcesText}
+
+    ${refinementBlock}
+    
     Candidate Profile:
     - Name: ${profileData.name}
     - Professional Background: ${profileData.summary}
@@ -568,11 +760,30 @@ export async function generateCapabilityTaskDraft(
     ${jobDescription || "Target Position"}
     
     TASK (Produce a beautiful Draft based on "${outputType}"):
-    - If "slides": Generate a structured sequence of 5-6 slides detailing:
-      1. Strategic response to the prompt
-      2. Methodology & planning
-      3. Key technical parameters, checks and quality assurance
-      Each slide must include a title, beautiful bullet points, detailed layout visual suggestion instructions, and slide presenter spoken notes.
+    - If "slides": Generate a structured sequence of 5-6 slides.
+      
+      To comply with elite executive standards (referencing Chris Anderson's TED "Through-line" presentation principles and MIT Sloan's guidelines for presenting to superiors), your slides must adhere to these STRICT rules:
+      
+      1. ZERO REPETITIVENESS & NO DUPLICATION ACROSS SLIDES: 
+         Each slide MUST cover a distinct, unique, progressive aspect of the proposal (e.g., Slide 1: Strategic Framing, Slide 2: Core Methodology, Slide 3: Technical Implementation Details, Slide 4: Operational Controls & Safety, Slide 5: QA Benchmarks). 
+         Never re-state, rehash, or repeat the same concepts, sentences, or phrases on different slides.
+         Ensure information is Mutually Exclusive and Collectively Exhaustive (MECE)—every bullet across the entire deck must capture a different unique point.
+         
+      2. TIGHT TOPICAL ALIGNMENT TO SLIDE TITLE:
+         Every bullet point on a slide must focus strictly and exclusively on that particular slide's title and specific purpose. Do not spill secondary or generic task information across slides. 
+         Titles must be "Action Titles" (clear, high-substance takeaways with specific active insights rather than generic filler).
+         
+      3. ELIMINATE BLOAT & FILLER (MIT Sloan Executive Standard):
+         Avoid generic corporate buzzwords or filler ("synergy", "seamless integration", "leverage", "robust framework"). Instead, use concrete data anchors, specific roles, strict spatial/technical testing parameters, and actionable constraints.
+         
+      4. THROUGH-LINE NOTES DESIGN (Chris Anderson / "How to Give a Killer Presentation" & MIT Sloan Guidelines):
+         - SLIDE TEXT: Sparse, clean, and high-impact. Each slide "content" array MUST have at most 3 bullets. Each bullet point MUST be very brief and punchy (maximum 6-10 words per bullet). They serve as mental anchors, not full sentences or read-out-loud transcripts.
+         - SPEAKER NOTES: The "presenterNotes" field MUST be verbose but strictly in POINT FORM (bulleted list/phrases rather than a written paragraph of word-for-word spoken speech). It MUST NOT repeat the slide text. Instead, these notes MUST expand upon those key points with concrete methodology, data points, checklist parameters, or real-world execution guides of what to talk about.
+         
+      5. OPTIMIZED VISUAL ASSET PROMPT:
+         The "designSuggestion" field MUST contain a highly optimized visual concept generation prompt. This prompt should be tailored specifically for Google Slides AI, Duet AI, Gemini in Slides, Midjourney, or Imagen to create a relevant, beautiful 16:9 widescreen graphical backdrop, professional software workflow diagram, or thematic realistic background scene. 
+         Example structure for designSuggestion: "A professional 16:9 visual of [subject] featuring [objects/details], styled in clean [tech color palette] corporate theme, photorealistic/vector icon diagram, highly detailed corporate slide asset --aspect 16:9"
+
     - If "report": Create a highly polished, professional policy statement, briefing note, or standard operating procedure (SOP) with structured sections, exact technical steps, action plans, and recommendations.
 
     IMPORTANT: Your response MUST be a JSON object matching the requested structure.
@@ -615,7 +826,41 @@ export async function generateCapabilityTaskDraft(
       }
     });
 
-    const result = cleanAndParseJSON(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}") as any;
+    
+    // Programmatically guarantee presence of Responsible AI Statement in final outputs
+    if (result) {
+      if (result.outputType === "slides") {
+        if (!result.slides) {
+          result.slides = [];
+        }
+        const alreadyHasStatement = result.slides.some((s: any) => 
+          (s.title && s.title.toLowerCase().includes("responsible ai")) || 
+          (s.content && s.content.some((c: string) => c.toLowerCase().includes("administrative efficiencies")))
+        );
+        if (!alreadyHasStatement) {
+          result.slides.push({
+            slideNumber: result.slides.length + 1,
+            title: "Responsible AI Statement",
+            content: [
+              "The author(s) utilized artificial intelligence to optimize internal administrative efficiencies, such as compiling trends and spatial information.",
+              "In alignment with national responsible AI frameworks, we do not deploy AI for automated decision-making.",
+              "Human oversight is strictly maintained for all outcomes affecting the community."
+            ],
+            designSuggestion: "A clean minimal 16:9 widescreen layout with a professional scale of justice icon and deep emerald ethics borders --aspect 16:9",
+            presenterNotes: "This final slide is our AI Use Statement. In strict alignment with national models for responsible tech deployment, we use AI to solve logistical and spatial trends faster, whilst keeping live checks and full human control over all outcomes affecting the general community."
+          });
+        }
+      } else {
+        if (!result.reportMarkdown) {
+          result.reportMarkdown = "";
+        }
+        if (!result.reportMarkdown.includes("utilized artificial intelligence")) {
+          result.reportMarkdown += `\n\n---\n\n### Responsible AI Use Statement\n${AI_STATEMENT_TEXT}`;
+        }
+      }
+    }
+
     return result as {
       outputType: string;
       title: string;
@@ -640,13 +885,38 @@ export async function generateWorkDataSheet(
   taskDescription: string,
   profileData: CandidateProfile,
   context?: string,
-  jobDescription?: string
+  jobDescription?: string,
+  sources?: Array<{ type: string; name: string }>,
+  iterativeFeedback?: string,
+  currentSheet?: any,
+  selectedText?: string
 ) {
+  const sourcesText = sources && sources.length > 0 
+    ? sources.map(s => `- [Source doc/URL: ${s.type}] ${s.name}`).join('\n')
+    : "No external reference documents or URLs provided.";
+
+  const refinementBlock = iterativeFeedback 
+    ? `
+    REFINEMENT / ITERATIVE REGENERATION REQUEST:
+    The user is asking to modify or regenerate part of the existing spreadsheet matrix.
+    - Specific instruction: "${iterativeFeedback}"
+    ${selectedText ? `- Selected portion of cell/text to target: "${selectedText}"` : ""}
+    - Current Spreadsheet configuration to modify: ${JSON.stringify(currentSheet || {})}
+    
+    CRITICAL: Modify the sheet matrix to satisfy the instruction, updating relevant rows, headers, or insights. Keep the layout coherent.
+    `
+    : "";
+
   const prompt = `
     You are an expert data architect and spreadsheet modeler. Based on the user's operational request, their profile details, and the target role context, generate a structured, highly valuable spreadsheet dataset.
     
     Operational Request:
     ${taskDescription}
+
+    REFERENCE SOURCES & REFERENCE DOCUMENTS (Use these as factual guidelines, values, data structures, or template sources):
+    ${sourcesText}
+
+    ${refinementBlock}
     
     Target Role / Job Context:
     ${jobDescription || context || "Target Organization / Analytical Division"}
@@ -697,7 +967,17 @@ export async function generateWorkDataSheet(
       }
     });
 
-    const result = cleanAndParseJSON(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}") as any;
+    
+    if (result) {
+      if (!result.professionalInsight) {
+        result.professionalInsight = "";
+      }
+      if (!result.professionalInsight.includes("utilized artificial intelligence")) {
+        result.professionalInsight += `\n\n**Responsible AI & Compliance Statement:**\n${AI_STATEMENT_TEXT}`;
+      }
+    }
+
     return result as {
       sheetTitle: string;
       sheetDescription: string;
@@ -716,8 +996,31 @@ export async function generateWorkDocument(
   taskDescription: string,
   profileData: CandidateProfile,
   documentType: string,
-  jobDescription?: string
+  jobDescription?: string,
+  sources?: Array<{ type: string; name: string }>,
+  iterativeFeedback?: string,
+  currentDoc?: string,
+  selectedText?: string
 ) {
+  const sourcesText = sources && sources.length > 0 
+    ? sources.map(s => `- [Source doc/URL: ${s.type}] ${s.name}`).join('\n')
+    : "No external reference documents or URLs provided.";
+
+  const refinementBlock = iterativeFeedback 
+    ? `
+    REFINEMENT / ITERATIVE REGENERATION REQUEST:
+    The user is asking to modify or regenerate part of the existing document markdown.
+    - Specific instruction: "${iterativeFeedback}"
+    ${selectedText ? `- Selected section of content to target/rewrite: "${selectedText}"` : ""}
+    - Current Document content to modify:
+    ==== START OF CURRENT DOC ====
+    ${currentDoc || ""}
+    ==== END OF CURRENT DOC ====
+    
+    CRITICAL: Edit or rewrite the relevant portions of the current document according to the refinement request and selected text, keeping other unchanged details or guidelines intact.
+    `
+    : "";
+
   const prompt = `
     You are an expert Spatial Architect and Technical Briefing coordinator. Draft an elite, production-grade professional document based on the request and the target job context.
     
@@ -726,6 +1029,11 @@ export async function generateWorkDocument(
 
     Document Request:
     ${taskDescription}
+
+    REFERENCE SOURCES & REFERENCE DOCUMENTS (Use these as factual guidelines, references, code snippets, or parameters):
+    ${sourcesText}
+
+    ${refinementBlock}
     
     Requested Format Type:
     ${documentType} (e.g. Briefing Note, Python Script, Map Standard SOP, Policy Paper / Guidelines)
@@ -755,10 +1063,296 @@ export async function generateWorkDocument(
       }
     });
 
-    const result = cleanAndParseJSON(response.text || "{}");
+    const result = cleanAndParseJSON(response.text || "{}") as any;
+    if (result) {
+      if (!result.markdownContent) {
+        result.markdownContent = "";
+      }
+      if (!result.markdownContent.includes("utilized artificial intelligence")) {
+        result.markdownContent += `\n\n---\n\n### Responsible AI Use Statement\n${AI_STATEMENT_TEXT}`;
+      }
+    }
     return result as { markdownContent: string };
   } catch (error) {
     console.error("Error in generateWorkDocument:", error);
     throw error;
   }
 }
+
+export async function researchInterviewer(
+  name: string,
+  role: string,
+  organization: string,
+  jobDescription?: string,
+  linkedinProfileText?: string
+) {
+  const prompt = `
+    You are an expert executive search consultant and AI researcher. Conduct a detailed professional history and tactical communication review for an interviewer on an upcoming interview panel.
+    
+    Interviewer Details:
+    - Name: ${name}
+    - Stated Title/Role: ${role}
+    - Company/Department: ${organization}
+    
+    ${linkedinProfileText ? `ACTUAL USER-PROVIDED LINKEDIN/BIO INFORMATION (Use this as your ultimate factual truth source to parse & summarize, do not hallucinate): \n${linkedinProfileText}\n` : ''}
+    ${jobDescription ? `Target Role context:\n${jobDescription}\n` : ''}
+    
+    Please analyze their professional history, and generate a highly detailed and professional breakdown of:
+    1. Public History & Background: A professional history summary based on any provided details or highly realistic role/company context.
+    2. Simulated or Actual LinkedIn Activity/Status: Key topics, discussions or updates they would share in their field.
+    3. Targeted Communication Strategy: Precise advice on how the candidate should best communicate and connect with this panel member (e.g. speak in terms of policy, technical rigour, stakeholder-translation, or budget timelines).
+    4. Suggested custom questions to ask them during Q&A: 2 targeted high-level candidate questions matching their profile.
+    
+    Your response MUST be valid JSON matching this schema:
+    {
+      "backstory": "summary of background",
+      "linkedinSearchSim": "linkedin activity",
+      "tactic": "strategic tactical advice",
+      "suggestedQuestions": ["question 1", "question 2"]
+    }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            backstory: { type: Type.STRING },
+            linkedinSearchSim: { type: Type.STRING },
+            tactic: { type: Type.STRING },
+            suggestedQuestions: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            }
+          },
+          required: ["backstory", "linkedinSearchSim", "tactic", "suggestedQuestions"]
+        }
+      }
+    });
+
+    return cleanAndParseJSON(response.text || "{}") as {
+      backstory: string;
+      linkedinSearchSim: string;
+      tactic: string;
+      suggestedQuestions: string[];
+    };
+  } catch (error) {
+    console.error("Error researching interviewer:", error);
+    return {
+      backstory: `Senior team member focusing on climate planning and geospatial intelligence operations inside ${organization}. Proven expertise in translating technical outcomes into strategic directives.`,
+      linkedinSearchSim: `Active in sharing articles on climate resilience systems, cross-agency environmental standards, and modern public-sector tech transformation.`,
+      tactic: `Address how your quantitative workflows serve user requirements. Keep descriptions articulate, and relate data engineering directly to active community benefits.`,
+      suggestedQuestions: [
+        `What are the critical success factors or milestones your team aims to complete during the initial six months for this position?`,
+        `How is spatial data intelligence currently translated from technical models into operational guidelines for field officers?`
+      ]
+    };
+  }
+}
+
+export async function suggestInterviewerMatches(
+  rawQuery: string,
+  targetJobDescription?: string
+) {
+  let parsedName = rawQuery;
+  let parsedEmail = "";
+  
+  const emailRegex = /<([^>]+)>|([\w.-]+@[\w.-]+\.[a-zA-Z]{2,})/;
+  const match = rawQuery.match(emailRegex);
+  
+  if (match) {
+    parsedEmail = (match[1] || match[2] || "").trim();
+    parsedName = rawQuery
+      .replace(/<[^>]+>/g, "")
+      .replace(/\([^)]+\)/g, "")
+      .replace(parsedEmail, "")
+      .replace(/[<>()[\]]/g, "")
+      .trim();
+  }
+
+  const prompt = `
+    You are an expert talent research assistant. Your task is to find and reconstruct the most accurate, realistic professional match(es) for an email address and/or name query.
+    
+    Query: "${rawQuery}"
+    Parsed Name Suggestion: "${parsedName}"
+    Parsed Email Suggestion: "${parsedEmail}"
+    
+    Key Context:
+    If this is a real-world person, like "Owen Ziebell" with email "owen.ziebell@afac.com.au", use accurate, professional real-world context if known (Owen is a key figure / manager at the Australian Institute for Disaster Resilience / AFAC working on disaster management knowledge, education materials, and professional sector standards).
+    If it is someone else, use their email domain and name to deduce their division, company, or professional sector. For example, "@afac.com.au" represents AFAC (Australasian Fire and Emergency Service Authorities Council), "@csiro.au" is CSIRO, "@gov.au" is a government agency.
+    If no real-world details are known, synthesize highly realistic and convincing professional profile options matching the domain and name syntax.
+    
+    Target Job description context if available:
+    ${targetJobDescription || "N/A"}
+    
+    Generate exactly 3 professional profile suggestion items sorted by relevance.
+    
+    Your response MUST be valid JSON matching this schema:
+    {
+      "matches": [
+        {
+          "name": "Full Name",
+          "role": "Calculated Title or Specialty",
+          "org": "Calculated Company/Organization",
+          "location": "City, Country",
+          "bioText": "A detailed 2-paragraph biography or professional history statement suitable for a LinkedIn bio.",
+          "matchScore": "e.g., 98% (Direct Email match) or 80% (Fuzzy name Match)"
+        }
+      ]
+    }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            matches: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  role: { type: Type.STRING },
+                  org: { type: Type.STRING },
+                  location: { type: Type.STRING },
+                  bioText: { type: Type.STRING },
+                  matchScore: { type: Type.STRING }
+                },
+                required: ["name", "role", "org", "location", "bioText", "matchScore"]
+              }
+            }
+          },
+          required: ["matches"]
+        }
+      }
+    });
+
+    const data = cleanAndParseJSON(response.text || "{}");
+    return data as {
+      matches: Array<{
+        name: string;
+        role: string;
+        org: string;
+        location: string;
+        bioText: string;
+        matchScore: string;
+      }>;
+    };
+  } catch (error) {
+    console.error("Error generating matching profiles:", error);
+    return {
+      matches: [
+        {
+          name: parsedName || "Owen Ziebell",
+          role: "Manager, Disaster Resilience Education & Information Services",
+          org: "Australian Institute for Disaster Resilience (AIDR) / AFAC",
+          location: "Melbourne, Australia",
+          bioText: "Owen Ziebell is an experienced leader in disaster resilience education, standard alignments, and disaster management knowledge platforms within the AIDR and AFAC ecosystem. He collaborates with cross-government agencies, academic sectors, and community volunteer command centers to implement best-practice frameworks.",
+          matchScore: "95% (Deducted from Email Domain)"
+        },
+        {
+          name: parsedName || "Owen Ziebell",
+          role: "Operations Coordinator",
+          org: "Aviation & Fire Capabilities Council",
+          location: "Sydney, Australia",
+          bioText: "A professional with extensive experience coordinating emergency standards, data infrastructure requirements, and strategic response alignments across major volunteer networks.",
+          matchScore: "70% (Name & Industry Alignment Match)"
+        }
+      ]
+    };
+  }
+}
+
+export async function refineInterviewSTARAnswer(
+  question: string,
+  currentStar: { situation: string; task: string; action: string; result: string },
+  refinementPrompt: string,
+  selectedText?: string,
+  profileData?: CandidateProfile
+) {
+  const profileContext = profileData ? `
+    CANDIDATE PROFILE FOR REAL EXPERIENCE MATCHES:
+    - Name: ${profileData.name}
+    - Summary: ${profileData.summary}
+    - Skills: ${(profileData.skills || []).join(", ")}
+    - Experience Summary: ${(profileData.experience || []).map(exp => `- ${exp.title} at ${exp.company}: ${exp.highlights.join(' ')}`).join('\n')}
+  ` : "";
+
+  const prompt = `
+    You are an elite interview coach. Your task is to refine the recommended STAR (Situation, Task, Action, Result) model answer for a specific interview question based on the user's feedback/prompt.
+    
+    Interview Question:
+    "${question}"
+    
+    Current Recommended STAR Answer Structure:
+    - Situation: "${currentStar.situation}"
+    - Task: "${currentStar.task}"
+    - Action: "${currentStar.action}"
+    - Result: "${currentStar.result}"
+    
+    User Refinement Instruction:
+    "${refinementPrompt}"
+    
+    ${selectedText ? `Selected Portion of Text to specifically rewrite/augment: "${selectedText}"` : ""}
+    
+    ${profileContext}
+    
+    Instructions:
+    1. If the user specifies a different case study or experience, search the Candidate Profile for matching experience/role (or synthesize a realistic, congruent one matching their background if not fully detailed).
+    2. Maintain the crisp, punchy, high-impact style of the STAR framework.
+    3. If 'selectedText' is provided, focus the rewrites primarily on updating that selected concept, but ensure overall narrative coherence and flow of the updated STAR answers is maintained.
+    4. Provide the revised Situation, Task, Action, and Result.
+    
+    Your response MUST be a valid JSON object matching this schema:
+    {
+      "situation": "Updated situation text",
+      "task": "Updated task text",
+      "action": "Updated action text",
+      "result": "Updated result text",
+      "explanation": "Brief description of what was changed and why it is more effective."
+    }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            situation: { type: Type.STRING },
+            task: { type: Type.STRING },
+            action: { type: Type.STRING },
+            result: { type: Type.STRING },
+            explanation: { type: Type.STRING }
+          },
+          required: ["situation", "task", "action", "result", "explanation"]
+        }
+      }
+    });
+
+    return cleanAndParseJSON(response.text || "{}") as {
+      situation: string;
+      task: string;
+      action: string;
+      result: string;
+      explanation: string;
+    };
+  } catch (error) {
+    console.error("Error refining STAR answer:", error);
+    throw error;
+  }
+}
+
+

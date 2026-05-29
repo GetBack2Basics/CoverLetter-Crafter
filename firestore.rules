@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global safety net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Standard Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 2. Candidate Profile rules
+    match /users/{userId} {
+      allow get: if isValidId(userId);
+      allow create, update: if isValidId(userId)
+        && incoming().name is string && incoming().name.size() <= 200
+        && incoming().email is string && incoming().email.size() <= 200;
+      allow delete: if isValidId(userId);
+
+      // 3. User Tracked Roles Sub-collection
+      match /roles/{roleId} {
+        allow list, get: if isValidId(userId);
+        allow create: if isValidId(userId) && isValidId(roleId)
+          && incoming().id == roleId
+          && incoming().companyName is string && incoming().companyName.size() <= 200
+          && incoming().jobTitle is string && incoming().jobTitle.size() <= 200;
+        allow update: if isValidId(userId) && isValidId(roleId)
+          && incoming().companyName is string && incoming().companyName.size() <= 200
+          && incoming().jobTitle is string && incoming().jobTitle.size() <= 200
+          && incoming().id == existing().id; // Secure identity transition
+        allow delete: if isValidId(userId);
+      }
+    }
+  }
+}

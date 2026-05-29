@@ -58,13 +58,23 @@ import {
   Bookmark,
   Building,
   Check,
-  AlertCircle
+  AlertCircle,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { DashboardView } from "./components/DashboardView";
 import { InterviewView } from "./components/InterviewView";
 import { WorkView } from "./components/WorkView";
+import { 
+  setupAuthListener, 
+  saveCandidateProfile, 
+  saveJobRole, 
+  deleteJobRoleFromDb, 
+  getCandidateProfile, 
+  getJobRoles 
+} from "./lib/firebase";
 
 const DEFAULT_RFS_PREP_DATA = {
   insightSummary: "Highly aligned candidate with practical geocentric datum transition experience and Python scripting expertise suited for NSW Rural Fire Service's Spatial GIS Analyst requirements.",
@@ -187,9 +197,68 @@ Applies to all GIS personnel, Spatial Analysts, and Incident Command Systems coo
 ---
 *Authored by: George Chandeep Corea, GIS Spatial Analyst candidate*`;
 
+const DEFAULT_SEED_ROLES: JobRole[] = [
+  {
+    id: "default-rfs-campaign",
+    companyName: "NSW Rural Fire Service",
+    jobTitle: "GIS Spatial Analyst",
+    jobDescription: "The NSW Rural Fire Service (RFS) is the world's largest volunteer fire fighting agency...\n\nLooking for a GIS Spatial Analyst to lead spatial solutions, custom web mapping apps, Python scripts automation, emergency dispatch sensor integration, disaster response spatial coordinates mapping tool development, and geocentric datum conversions (GDA94 to GDA2020).",
+    status: "Interview Scheduled",
+    createdDate: "Mon 25 May",
+    coverLetter: `George Chandeep Corea\nCoreaGC@gmail.com\n\n25 May 2026\n\nMeaghan Jenkins\nNSW Rural Fire Service (RFS)\n\nDear Meaghan Jenkins and the NSW RFS Selection Panel,\n\nI am writing to express my enthusiastic interest in the GIS Spatial Analyst / Spatial Specialist position at the NSW Rural Fire Service (RFS). With solid professional domain experience in emergency services geographical tools, automated Python script execution, and spatial coordinate grids, I am highly eager to lead spatial delivery and data validation operations at your world-class disaster management agency.\n\nThroughout my career as a Geospatial Specialist, I have prioritized optimizing data integrity and operational readiness. For example, during critical hazard mapping sprints, I successfully deployed python scripts for spatial automation, reducing coordinate grid ingest lag by over 40%. This matches directly with NSW RFS priorities to manage active coordinate datums (including converting local coordinates from GDA94 to GDA2020 datums cleanly in real-time) and supporting sensor networks deployed on incident command terminals.\n\nIn addition, I have extensive experience collaborating closely with operational incident command bureaus. I am accustomed to translating emergency directives into actionable digital maps, including developing customized drone hazard buffers and managing massive geospatial databases containing thousands of assets (such as water mains, fire hazard regions, and command zones).\n\nI am fully prepared to present my technical outputs for the selection panel's review on Friday, and I look forward to discussing how my spatial delivery credentials will guarantee GIS excellence at NSW RFS.\n\nSincerely,\nGeorge Chandeep Corea`,
+    coverLetterSpecifics: "GDA94 to GDA2020 datum conversion script, python automation buffers",
+    hiringManager: "Meaghan Jenkins",
+    applicationEmail: "meaghan.jenkins@rfs.nsw.gov.au",
+    keyRequirements: [
+      "Datum conversion expertise (GDA94 to GDA2020)",
+      "Python scripting for geospatial layers processing",
+      "Incident Command Systems coordinates sensor dashboard mapping",
+      "Specialized disaster management and fire hazard spatial buffering SOP layout"
+    ],
+    taskInstructions: "Capability Task 1: Spatial incident command system coordinates grid sensor mapping SOP.\nCapability Task 2: GDA94 to GDA2020 conversion python script presentation.",
+    workTaskDesc: "Spatial automation script to convert coordinate inputs from GDA94 to GDA2020 datum across 50 dispatch points.",
+    sheetInput: "Table outlining GDA94 geocentric coordinates, GDA2020 coordinate shifts, geocentric error tolerances, and transform status metrics across 50 regional dispatch sites.",
+    interviewPrepData: DEFAULT_RFS_PREP_DATA,
+    taskDraftOutput: DEFAULT_RFS_TASK_DRAFT,
+    generatedDoc: DEFAULT_RFS_GENERATED_DOC,
+    generatedSheet: DEFAULT_RFS_GENERATED_SHEET,
+  },
+  {
+    id: "default-dcceew-campaign",
+    companyName: "Department of Climate Change (DCCEEW)",
+    jobTitle: "Remote Sensing Technical Officer",
+    jobDescription: "Lead analytical drone LiDAR and satellite imagery forestry hazard audits across NSW conservation sectors.",
+    status: "Applied",
+    createdDate: "Sat 23 May",
+    coverLetter: "Dear DCCEEW Selection Board,\n\nI am writing to apply for the Remote Sensing Technical Officer position. My skills in LiDAR forestry classifications and satellite bands processing are highly aligned...",
+    workTaskDesc: "Drone LiDAR classification script to calculate canopy density indicators for bushfire hazard maps."
+  },
+  {
+    id: "default-tablelands-campaign",
+    companyName: "Tablelands Regional Council",
+    jobTitle: "Senior GIS Geospatial Specialist",
+    jobDescription: "Lead regional council asset audits, drainage structures mapping, and coordinate GITA spatial community metrics integration.",
+    status: "Accepted",
+    createdDate: "Wed 20 May",
+    coverLetter: "To the Tablelands Selection Team,\n\nI am thrilled to accept the offer for Senior GIS Geospatial Specialist. This campaign represents a successful integration of municipal asset records..."
+  },
+  {
+    id: "default-acme-campaign",
+    companyName: "Acme Forestry Geospatial",
+    jobTitle: "Junior GIS Developer",
+    jobDescription: "Python script automation for woodland parcel spatial buffering operations.",
+    status: "Rejected",
+    createdDate: "Fri 15 May",
+    coverLetter: "Dear Acme Hiring Group,\n\nPlease accept this letter of application for your Junior GIS Developer role where I highlight python spatial buffering operations..."
+  }
+];
+
 
 export default function App() {
   const [activeView, setActiveView] = useState<"dashboard" | "cover" | "interview" | "work">("dashboard");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
+  const [isInitialRoleLoaded, setIsInitialRoleLoaded] = useState(false);
   
   // Job Seeker Hub States
   const [interviewPrepData, setInterviewPrepData] = useState<any>(null);
@@ -214,31 +283,56 @@ export default function App() {
   const [generatedSheet, setGeneratedSheet] = useState<any>(null);
   const [isSheetGenerating, setIsSheetGenerating] = useState(false);
   const [activeWorkTab, setActiveWorkTab] = useState<"slides" | "sheets" | "docs">("slides");
+  const [isProfileCollapsed, setIsProfileCollapsed] = useState(false);
 
-  const [companyName, setCompanyName] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [applicationEmail, setApplicationEmail] = useState("");
-  const [hiringManager, setHiringManager] = useState("");
-  const [coverLetterSpecifics, setCoverLetterSpecifics] = useState("");
-  const [companyInfo, setCompanyInfo] = useState("");
-  const [keyRequirements, setKeyRequirements] = useState<string[]>([]);
-  const [jobDescription, setJobDescription] = useState("");
-  const [customQuestions, setCustomQuestions] = useState("");
+  const [activeRoleId, setActiveRoleId] = useState<string>(() => {
+    const saved = localStorage.getItem("jobcrafter_active_role_id");
+    return saved || "default-rfs-campaign";
+  });
+
+  // Multi-role lifecycle state management loaded from localStorage on mount
+  const [roles, setRoles] = useState<JobRole[]>(() => {
+    const saved = localStorage.getItem("jobcrafter_roles");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("Error parsing saved roles", e);
+      }
+    }
+    return DEFAULT_SEED_ROLES;
+  });
+
+  // Identify the initial active role from our initial offline roles
+  const initialActiveRole = roles.find(r => r.id === activeRoleId) || roles[0];
+
+  const [companyName, setCompanyName] = useState(initialActiveRole?.companyName || "");
+  const [jobTitle, setJobTitle] = useState(initialActiveRole?.jobTitle || "");
+  const [applicationEmail, setApplicationEmail] = useState(initialActiveRole?.applicationEmail || "");
+  const [hiringManager, setHiringManager] = useState(initialActiveRole?.hiringManager || "");
+  const [coverLetterSpecifics, setCoverLetterSpecifics] = useState(initialActiveRole?.coverLetterSpecifics || "");
+  const [companyInfo, setCompanyInfo] = useState(initialActiveRole?.companyInfo || "");
+  const [keyRequirements, setKeyRequirements] = useState<string[]>(initialActiveRole?.keyRequirements || []);
+  const [jobDescription, setJobDescription] = useState(initialActiveRole?.jobDescription || "");
+  const [customQuestions, setCustomQuestions] = useState(initialActiveRole?.customQuestions || "");
   const [userProfile, setUserProfile] = useState<CandidateProfile>(sampleProfile);
   const [isExtracting, setIsExtracting] = useState(false);
   const [showReview, setShowReview] = useState(false);
-  const [generatedLetter, setGeneratedLetter] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
+  const [generatedLetter, setGeneratedLetter] = useState(initialActiveRole?.coverLetter || "");
+  const [emailSubject, setEmailSubject] = useState(initialActiveRole?.emailSubject || "");
+  const [emailBody, setEmailBody] = useState(initialActiveRole?.emailBody || "");
   const [showEmailDraft, setShowEmailDraft] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [tempProfile, setTempProfile] = useState<CandidateProfile>(userProfile);
   const [advice, setAdvice] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editableLetter, setEditableLetter] = useState("");
+  const [editableLetter, setEditableLetter] = useState(initialActiveRole?.coverLetter || "");
   const [refinementText, setRefinementText] = useState("");
-  const [analysisSuggestions, setAnalysisSuggestions] = useState<any[]>([]);
+  const [analysisSuggestions, setAnalysisSuggestions] = useState<any[]>(initialActiveRole?.analysisSuggestions || []);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [template, setTemplate] = useState("modern");
@@ -253,92 +347,10 @@ export default function App() {
     { id: 'simple', name: 'Simple' }
   ]);
 
-  // Multi-role lifecycle state management
-  const [roles, setRoles] = useState<JobRole[]>(() => {
-    const saved = localStorage.getItem("jobcrafter_roles");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Map elements to inject mock data fallback so they are complete
-        return parsed.map((r: any) => {
-          if (r.id === "default-rfs-campaign") {
-            return {
-              ...r,
-              interviewPrepData: r.interviewPrepData || DEFAULT_RFS_PREP_DATA,
-              taskDraftOutput: r.taskDraftOutput || DEFAULT_RFS_TASK_DRAFT,
-              generatedDoc: r.generatedDoc || DEFAULT_RFS_GENERATED_DOC,
-              generatedSheet: r.generatedSheet || DEFAULT_RFS_GENERATED_SHEET,
-            };
-          }
-          return r;
-        });
-      } catch (e) {
-        console.error("Error parsing saved roles", e);
-      }
-    }
-    return [
-      {
-        id: "default-rfs-campaign",
-        companyName: "NSW Rural Fire Service",
-        jobTitle: "GIS Spatial Analyst",
-        jobDescription: "The NSW Rural Fire Service (RFS) is the world's largest volunteer fire fighting agency...\n\nLooking for a GIS Spatial Analyst to lead spatial solutions, custom web mapping apps, Python scripts automation, emergency dispatch sensor integration, disaster response spatial coordinates mapping tool development, and geocentric datum conversions (GDA94 to GDA2020).",
-        status: "Interview Scheduled",
-        createdDate: "Mon 25 May",
-        coverLetter: `George Chandeep Corea\nCoreaGC@gmail.com\n\n25 May 2026\n\nMeaghan Jenkins\nNSW Rural Fire Service (RFS)\n\nDear Meaghan Jenkins and the NSW RFS Selection Panel,\n\nI am writing to express my enthusiastic interest in the GIS Spatial Analyst / Spatial Specialist position at the NSW Rural Fire Service (RFS). With solid professional domain experience in emergency services geographical tools, automated Python script execution, and spatial coordinate grids, I am highly eager to lead spatial delivery and data validation operations at your world-class disaster management agency.\n\nThroughout my career as a Geospatial Specialist, I have prioritized optimizing data integrity and operational readiness. For example, during critical hazard mapping sprints, I successfully deployed python scripts for spatial automation, reducing coordinate grid ingest lag by over 40%. This matches directly with NSW RFS priorities to manage active coordinate datums (including converting local coordinates from GDA94 to GDA2020 datums cleanly in real-time) and supporting sensor networks deployed on incident command terminals.\n\nIn addition, I have extensive experience collaborating closely with operational incident command bureaus. I am accustomed to translating emergency directives into actionable digital maps, including developing customized drone hazard buffers and managing massive geospatial databases containing thousands of assets (such as water mains, fire hazard regions, and command zones).\n\nI am fully prepared to present my technical outputs for the selection panel's review on Friday, and I look forward to discussing how my spatial delivery credentials will guarantee GIS excellence at NSW RFS.\n\nSincerely,\nGeorge Chandeep Corea`,
-        coverLetterSpecifics: "GDA94 to GDA2020 datum conversion script, python automation buffers",
-        hiringManager: "Meaghan Jenkins",
-        applicationEmail: "meaghan.jenkins@rfs.nsw.gov.au",
-        keyRequirements: [
-          "Datum conversion expertise (GDA94 to GDA2020)",
-          "Python scripting for geospatial layers processing",
-          "Incident Command Systems coordinates sensor dashboard mapping",
-          "Specialized disaster management and fire hazard spatial buffering SOP layout"
-        ],
-        taskInstructions: "Capability Task 1: Spatial incident command system coordinates grid sensor mapping SOP.\nCapability Task 2: GDA94 to GDA2020 conversion python script presentation.",
-        workTaskDesc: "Spatial automation script to convert coordinate inputs from GDA94 to GDA2020 datum across 50 dispatch points.",
-        sheetInput: "Table outlining GDA94 geocentric coordinates, GDA2020 coordinate shifts, geocentric error tolerances, and transform status metrics across 50 regional dispatch sites.",
-        interviewPrepData: DEFAULT_RFS_PREP_DATA,
-        taskDraftOutput: DEFAULT_RFS_TASK_DRAFT,
-        generatedDoc: DEFAULT_RFS_GENERATED_DOC,
-        generatedSheet: DEFAULT_RFS_GENERATED_SHEET,
-      },
-      {
-        id: "default-dcceew-campaign",
-        companyName: "Department of Climate Change (DCCEEW)",
-        jobTitle: "Remote Sensing Technical Officer",
-        jobDescription: "Lead analytical drone LiDAR and satellite imagery forestry hazard audits across NSW conservation sectors.",
-        status: "Applied",
-        createdDate: "Sat 23 May",
-        coverLetter: "Dear DCCEEW Selection Board,\n\nI am writing to apply for the Remote Sensing Technical Officer position. My skills in LiDAR forestry classifications and satellite bands processing are highly aligned...",
-        workTaskDesc: "Drone LiDAR classification script to calculate canopy density indicators for bushfire hazard maps."
-      },
-      {
-        id: "default-tablelands-campaign",
-        companyName: "Tablelands Regional Council",
-        jobTitle: "Senior GIS Geospatial Specialist",
-        jobDescription: "Lead regional council asset audits, drainage structures mapping, and coordinate GITA spatial community metrics integration.",
-        status: "Accepted",
-        createdDate: "Wed 20 May",
-        coverLetter: "To the Tablelands Selection Team,\n\nI am thrilled to accept the offer for Senior GIS Geospatial Specialist. This campaign represents a successful integration of municipal asset records..."
-      },
-      {
-        id: "default-acme-campaign",
-        companyName: "Acme Forestry Geospatial",
-        jobTitle: "Junior GIS Developer",
-        jobDescription: "Python script automation for woodland parcel spatial buffering operations.",
-        status: "Rejected",
-        createdDate: "Fri 15 May",
-        coverLetter: "Dear Acme Hiring Group,\n\nPlease accept this letter of application for your Junior GIS Developer role where I highlight python spatial buffering operations..."
-      }
-    ];
-  });
-
-  const [activeRoleId, setActiveRoleId] = useState<string>(() => {
-    const saved = localStorage.getItem("jobcrafter_active_role_id");
-    return saved || "default-rfs-campaign";
-  });
-
   const switchActiveRole = (newRoleId: string) => {
+    // Suspend auto-saving to prevent race conditions during role switch
+    setIsInitialRoleLoaded(false);
+
     // 1. Lock in the current state to the previously active role in the array
     setRoles(prevRoles => {
       const updated = prevRoles.map(r => {
@@ -406,104 +418,178 @@ export default function App() {
 
     setActiveRoleId(newRoleId);
     localStorage.setItem("jobcrafter_active_role_id", newRoleId);
+
+    // Safely enable auto-save after React finishes executing state batch updates
+    setTimeout(() => {
+      setIsInitialRoleLoaded(true);
+    }, 150);
   };
 
   useEffect(() => {
-    const activeRole = roles.find(r => r.id === activeRoleId);
-    if (activeRole) {
-      setCompanyName(activeRole.companyName || "");
-      setJobTitle(activeRole.jobTitle || "");
-      setJobDescription(activeRole.jobDescription || "");
-      setApplicationEmail(activeRole.applicationEmail || "");
-      setHiringManager(activeRole.hiringManager || "");
-      setCoverLetterSpecifics(activeRole.coverLetterSpecifics || "");
-      setCompanyInfo(activeRole.companyInfo || "");
-      setKeyRequirements(activeRole.keyRequirements || []);
-      setGeneratedLetter(activeRole.coverLetter || "");
-      setEditableLetter(activeRole.coverLetter || "");
-      setEmailSubject(activeRole.emailSubject || "");
-      setEmailBody(activeRole.emailBody || "");
-      setAnalysisSuggestions(activeRole.analysisSuggestions || []);
-      setInterviewPrepData(activeRole.interviewPrepData || null);
-      setUserStarsAnswers(activeRole.userStarsAnswers || {});
-      setTaskInstructions(activeRole.taskInstructions || "");
-      setTaskDraftOutput(activeRole.taskDraftOutput || null);
-      setWorkTaskDesc(activeRole.workTaskDesc || "");
-      setSelectedDocType(activeRole.selectedDocType || "SOP Document");
-      setGeneratedDoc(activeRole.generatedDoc || "");
-      setSheetInput(activeRole.sheetInput || "");
-      setGeneratedSheet(activeRole.generatedSheet || null);
-      setCustomQuestions(activeRole.customQuestions || "");
-    }
+    const unsubscribe = setupAuthListener(async (uid) => {
+      setUserId(uid);
+      try {
+        let profileData = await getCandidateProfile(uid);
+        let rolesData = await getJobRoles(uid);
+
+        // First-time sandbox setup: check for existing working records in browser's localstorage
+        if (!profileData) {
+          profileData = sampleProfile;
+          await saveCandidateProfile(uid, sampleProfile);
+
+          // Attempt to migrate candidate's current working campaign records
+          const localRolesStr = localStorage.getItem("jobcrafter_roles");
+          let resolvedRoles = DEFAULT_SEED_ROLES;
+          if (localRolesStr) {
+            try {
+              const parsed = JSON.parse(localRolesStr);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                // If they have any saved data, migrate those instead of defaults to recover their progress
+                resolvedRoles = parsed;
+              }
+            } catch (e) {
+              console.error("Failed to parse local backup roles:", e);
+            }
+          }
+
+          for (const r of resolvedRoles) {
+            await saveJobRole(uid, r);
+          }
+          rolesData = resolvedRoles;
+        }
+
+        setUserProfile(profileData);
+        setRoles(rolesData);
+
+        const savedActiveId = localStorage.getItem("jobcrafter_active_role_id") || "default-rfs-campaign";
+        const hasActiveRole = rolesData.some(r => r.id === savedActiveId);
+        const activeId = hasActiveRole ? savedActiveId : (rolesData[0]?.id || "default-rfs-campaign");
+        setActiveRoleId(activeId);
+
+        const currentActiveRole = rolesData.find(r => r.id === activeId);
+        if (currentActiveRole) {
+          setCompanyName(currentActiveRole.companyName || "");
+          setJobTitle(currentActiveRole.jobTitle || "");
+          setJobDescription(currentActiveRole.jobDescription || "");
+          setApplicationEmail(currentActiveRole.applicationEmail || "");
+          setHiringManager(currentActiveRole.hiringManager || "");
+          setCoverLetterSpecifics(currentActiveRole.coverLetterSpecifics || "");
+          setCompanyInfo(currentActiveRole.companyInfo || "");
+          setKeyRequirements(currentActiveRole.keyRequirements || []);
+          setGeneratedLetter(currentActiveRole.coverLetter || "");
+          setEditableLetter(currentActiveRole.coverLetter || "");
+          setEmailSubject(currentActiveRole.emailSubject || "");
+          setEmailBody(currentActiveRole.emailBody || "");
+          setAnalysisSuggestions(currentActiveRole.analysisSuggestions || []);
+          setInterviewPrepData(currentActiveRole.interviewPrepData || null);
+          setUserStarsAnswers(currentActiveRole.userStarsAnswers || {});
+          setTaskInstructions(currentActiveRole.taskInstructions || "");
+          setTaskDraftOutput(currentActiveRole.taskDraftOutput || null);
+          setWorkTaskDesc(currentActiveRole.workTaskDesc || "");
+          setSelectedDocType(currentActiveRole.selectedDocType || "SOP Document");
+          setGeneratedDoc(currentActiveRole.generatedDoc || "");
+          setSheetInput(currentActiveRole.sheetInput || "");
+          setGeneratedSheet(currentActiveRole.generatedSheet || null);
+          setCustomQuestions(currentActiveRole.customQuestions || "");
+        }
+
+        // Release the auto-saver in the next microtask after states have fully committed
+        setTimeout(() => {
+          setIsInitialRoleLoaded(true);
+        }, 200);
+
+      } catch (err) {
+        console.error("Error loading Firestore user data:", err);
+      } finally {
+        setIsFirebaseLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!activeRoleId) return;
+    if (!userId || !userProfile) return;
+    saveCandidateProfile(userId, userProfile).catch(err => {
+      console.error("Firestore saveCandidateProfile error:", err);
+    });
+  }, [userId, userProfile]);
+
+  useEffect(() => {
+    if (!activeRoleId || !userId || isFirebaseLoading || !isInitialRoleLoaded) return;
+
+    const currentRoleInState = roles.find(r => r.id === activeRoleId);
+    let hasChange = true;
+    if (currentRoleInState) {
+      hasChange = 
+        currentRoleInState.companyName !== companyName ||
+        currentRoleInState.jobTitle !== jobTitle ||
+        currentRoleInState.jobDescription !== jobDescription ||
+        currentRoleInState.applicationEmail !== applicationEmail ||
+        currentRoleInState.hiringManager !== hiringManager ||
+        currentRoleInState.coverLetterSpecifics !== coverLetterSpecifics ||
+        currentRoleInState.companyInfo !== companyInfo ||
+        JSON.stringify(currentRoleInState.keyRequirements) !== JSON.stringify(keyRequirements) ||
+        currentRoleInState.coverLetter !== generatedLetter ||
+        currentRoleInState.emailSubject !== emailSubject ||
+        currentRoleInState.emailBody !== emailBody ||
+        JSON.stringify(currentRoleInState.analysisSuggestions) !== JSON.stringify(analysisSuggestions) ||
+        JSON.stringify(currentRoleInState.interviewPrepData) !== JSON.stringify(interviewPrepData) ||
+        JSON.stringify(currentRoleInState.userStarsAnswers) !== JSON.stringify(userStarsAnswers) ||
+        currentRoleInState.taskInstructions !== taskInstructions ||
+        JSON.stringify(currentRoleInState.taskDraftOutput) !== JSON.stringify(taskDraftOutput) ||
+        currentRoleInState.workTaskDesc !== workTaskDesc ||
+        currentRoleInState.selectedDocType !== selectedDocType ||
+        currentRoleInState.generatedDoc !== generatedDoc ||
+        currentRoleInState.sheetInput !== sheetInput ||
+        JSON.stringify(currentRoleInState.generatedSheet) !== JSON.stringify(generatedSheet) ||
+        currentRoleInState.customQuestions !== customQuestions;
+    }
+
+    if (!hasChange) return;
+
+    const updatedRole: JobRole = {
+      id: activeRoleId,
+      companyName,
+      jobTitle,
+      jobDescription,
+      applicationEmail,
+      hiringManager,
+      coverLetterSpecifics,
+      companyInfo,
+      keyRequirements,
+      coverLetter: generatedLetter,
+      emailSubject,
+      emailBody,
+      analysisSuggestions,
+      interviewPrepData,
+      userStarsAnswers,
+      taskInstructions,
+      taskDraftOutput,
+      workTaskDesc,
+      selectedDocType,
+      generatedDoc,
+      sheetInput,
+      generatedSheet,
+      customQuestions,
+      status: currentRoleInState?.status || "Drafting",
+      createdDate: currentRoleInState?.createdDate || new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short" })
+    };
+
     setRoles(prevRoles => {
-      const currentRole = prevRoles.find(r => r.id === activeRoleId);
-      if (currentRole) {
-        const hasChange = 
-          currentRole.companyName !== companyName ||
-          currentRole.jobTitle !== jobTitle ||
-          currentRole.jobDescription !== jobDescription ||
-          currentRole.applicationEmail !== applicationEmail ||
-          currentRole.hiringManager !== hiringManager ||
-          currentRole.coverLetterSpecifics !== coverLetterSpecifics ||
-          currentRole.companyInfo !== companyInfo ||
-          JSON.stringify(currentRole.keyRequirements) !== JSON.stringify(keyRequirements) ||
-          currentRole.coverLetter !== generatedLetter ||
-          currentRole.emailSubject !== emailSubject ||
-          currentRole.emailBody !== emailBody ||
-          JSON.stringify(currentRole.analysisSuggestions) !== JSON.stringify(analysisSuggestions) ||
-          JSON.stringify(currentRole.interviewPrepData) !== JSON.stringify(interviewPrepData) ||
-          JSON.stringify(currentRole.userStarsAnswers) !== JSON.stringify(userStarsAnswers) ||
-          currentRole.taskInstructions !== taskInstructions ||
-          JSON.stringify(currentRole.taskDraftOutput) !== JSON.stringify(taskDraftOutput) ||
-          currentRole.workTaskDesc !== workTaskDesc ||
-          currentRole.selectedDocType !== selectedDocType ||
-          currentRole.generatedDoc !== generatedDoc ||
-          currentRole.sheetInput !== sheetInput ||
-          JSON.stringify(currentRole.generatedSheet) !== JSON.stringify(generatedSheet) ||
-          currentRole.customQuestions !== customQuestions;
-
-        if (!hasChange) return prevRoles;
-      }
-
-      const updated = prevRoles.map(r => {
-        if (r.id === activeRoleId) {
-          return {
-            ...r,
-            companyName,
-            jobTitle,
-            jobDescription,
-            applicationEmail,
-            hiringManager,
-            coverLetterSpecifics,
-            companyInfo,
-            keyRequirements,
-            coverLetter: generatedLetter,
-            emailSubject,
-            emailBody,
-            analysisSuggestions,
-            interviewPrepData,
-            userStarsAnswers,
-            taskInstructions,
-            taskDraftOutput,
-            workTaskDesc,
-            selectedDocType,
-            generatedDoc,
-            sheetInput,
-            generatedSheet,
-            customQuestions,
-          };
-        }
-        return r;
-      });
-
+      const updated = prevRoles.map(r => r.id === activeRoleId ? updatedRole : r);
       localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
       return updated;
     });
+
+    saveJobRole(userId, updatedRole).catch(err => {
+      console.error("Firestore auto-save role error:", err);
+    });
+
   }, [
+    userId,
+    isFirebaseLoading,
+    isInitialRoleLoaded,
     activeRoleId,
     companyName,
     jobTitle,
@@ -546,15 +632,38 @@ export default function App() {
       return updated;
     });
 
+    if (userId) {
+      saveJobRole(userId, newRole).catch(err => {
+        console.error("Firestore saveJobRole error:", err);
+      });
+    }
+
     switchActiveRole(newId);
   };
 
   const handleUpdateRoleStatus = (id: string, status: JobRole["status"]) => {
+    let targetRole: JobRole | undefined;
     setRoles(prev => {
-      const updated = prev.map(r => r.id === id ? { ...r, status } : r);
+      const updated = prev.map(r => {
+        if (r.id === id) {
+          targetRole = { ...r, status };
+          return targetRole;
+        }
+        return r;
+      });
       localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
       return updated;
     });
+
+    if (userId) {
+      setTimeout(() => {
+        if (targetRole) {
+          saveJobRole(userId!, targetRole).catch(err => {
+            console.error("Firestore update role status error:", err);
+          });
+        }
+      }, 50);
+    }
     toast.success(`Milestone stage updated to: ${status}`);
   };
 
@@ -564,6 +673,12 @@ export default function App() {
       localStorage.setItem("jobcrafter_roles", JSON.stringify(updated));
       return updated;
     });
+
+    if (userId) {
+      deleteJobRoleFromDb(userId, id).catch(err => {
+        console.error("Firestore deleteJobRole error:", err);
+      });
+    }
 
     // If deleting our active role, fallback to the first remaining role campaign
     if (activeRoleId === id) {
@@ -580,6 +695,10 @@ export default function App() {
   const [sources, setSources] = useState([
     { id: '1', type: 'linkedin', name: userProfile.linkedin, icon: <Linkedin className="w-3 h-3 text-[#0A66C2]" /> },
     { id: '2', type: 'file', name: 'Current Resume (Click to upload)', icon: <FileText className="w-3 h-3 text-primary" /> }
+  ]);
+  const [workSources, setWorkSources] = useState<Array<{ id: string; type: 'link' | 'file'; name: string }>>([
+    { id: 'ws-1', type: 'link', name: 'https://hbr.org/2013/06/how-to-give-a-killer-presentation' },
+    { id: 'ws-2', type: 'link', name: 'https://sloanreview.mit.edu/article/how-to-create-slides-that-suit-your-superiors-11-tips/' }
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -817,10 +936,20 @@ export default function App() {
   const handleGeneratePrep = async () => {
     setIsPrepGenerating(true);
     try {
-      const prep = await generateInterviewPrep(jobDescription, userProfile, generatedLetter, customQuestions);
+      const prep = await generateInterviewPrep(
+        jobDescription,
+        userProfile,
+        generatedLetter,
+        customQuestions,
+        {
+          generatedDoc,
+          generatedSheet,
+          taskDraftOutput
+        }
+      );
       setInterviewPrepData(prep);
       setSelectedQuestionIndex(0);
-      toast.success("Tailored RFS Interview Prep Guide compiled!");
+      toast.success("Tailored Interview Prep Guide compiled!");
     } catch (error) {
       toast.error("Failed to compile interview guide. Please try again.");
       console.error(error);
@@ -829,55 +958,98 @@ export default function App() {
     }
   };
 
-  const handleGenerateTaskDraft = async (outputType: "slides" | "report") => {
+  const handleGenerateTaskDraft = async (
+    outputType: "slides" | "report",
+    isRefinement = false,
+    refinementText?: string,
+    selectedText?: string
+  ) => {
     if (!taskInstructions) {
       toast.error("Please insert Capability Task instructions first.");
       return;
     }
     setIsTaskDrafting(true);
     try {
-      const draft = await generateCapabilityTaskDraft(taskInstructions, userProfile, jobDescription, outputType);
+      const cleanSources = workSources.map(s => ({ type: s.type, name: s.name }));
+      const draft = await generateCapabilityTaskDraft(
+        taskInstructions, 
+        userProfile, 
+        jobDescription, 
+        outputType,
+        cleanSources,
+        isRefinement ? refinementText : undefined,
+        isRefinement ? taskDraftOutput : undefined,
+        isRefinement ? selectedText : undefined
+      );
       setTaskDraftOutput(draft);
       setActiveSlideIndex(0);
-      toast.success(`Capability ${outputType === 'slides' ? 'Presentation' : 'Operational Memo'} created!`);
+      toast.success(isRefinement ? `Capability ${outputType === 'slides' ? 'Presentation' : 'Operational Memo'} refined!` : `Capability ${outputType === 'slides' ? 'Presentation' : 'Operational Memo'} created!`);
     } catch (error) {
-      toast.error("Failed to generate task draft. Please try again.");
+      toast.error(isRefinement ? "Failed to refine task draft. Please try again." : "Failed to generate task draft. Please try again.");
       console.error(error);
     } finally {
       setIsTaskDrafting(false);
     }
   };
 
-  const handleGenerateWorkDocument = async () => {
+  const handleGenerateWorkDocument = async (
+    isRefinement = false,
+    refinementText?: string,
+    selectedText?: string
+  ) => {
     if (!workTaskDesc) {
       toast.error("Please describe the work task first.");
       return;
     }
     setIsDocGenerating(true);
     try {
-      const doc = await generateWorkDocument(workTaskDesc, userProfile, selectedDocType, jobDescription);
+      const cleanSources = workSources.map(s => ({ type: s.type, name: s.name }));
+      const doc = await generateWorkDocument(
+        workTaskDesc, 
+        userProfile, 
+        selectedDocType, 
+        jobDescription,
+        cleanSources,
+        isRefinement ? refinementText : undefined,
+        isRefinement ? generatedDoc : undefined,
+        isRefinement ? selectedText : undefined
+      );
       setGeneratedDoc(doc.markdownContent);
-      toast.success("Operational SOP draft constructed!");
+      toast.success(isRefinement ? "Operational SOP draft refined!" : "Operational SOP draft constructed!");
     } catch (error) {
-      toast.error("Failed to generate document. Please try again.");
+      toast.error(isRefinement ? "Failed to refine document. Please try again." : "Failed to generate document. Please try again.");
       console.error(error);
     } finally {
       setIsDocGenerating(false);
     }
   };
 
-  const handleGenerateWorkSheet = async () => {
+  const handleGenerateWorkSheet = async (
+    isRefinement = false,
+    refinementText?: string,
+    selectedText?: string
+  ) => {
     if (!sheetInput) {
       toast.error("Please describe the spreadsheet database to compile.");
       return;
     }
     setIsSheetGenerating(true);
     try {
-      const sheet = await generateWorkDataSheet(sheetInput, userProfile, "NSW Rural Fire Service - Command & GIS Bureau", jobDescription);
+      const cleanSources = workSources.map(s => ({ type: s.type, name: s.name }));
+      const sheet = await generateWorkDataSheet(
+        sheetInput, 
+        userProfile, 
+        "NSW Rural Fire Service - Command & GIS Bureau", 
+        jobDescription,
+        cleanSources,
+        isRefinement ? refinementText : undefined,
+        isRefinement ? generatedSheet : undefined,
+        isRefinement ? selectedText : undefined
+      );
       setGeneratedSheet(sheet);
-      toast.success("Operational database sheet constructed!");
+      toast.success(isRefinement ? "Operational database sheet refined!" : "Operational database sheet constructed!");
     } catch (error) {
-      toast.error("Failed to compile spreadsheet. Please try again.");
+      toast.error(isRefinement ? "Failed to refine spreadsheet. Please try again." : "Failed to compile spreadsheet. Please try again.");
       console.error(error);
     } finally {
       setIsSheetGenerating(false);
@@ -1015,6 +1187,25 @@ export default function App() {
 
   const templateStyles = getTemplateStyles();
 
+  if (isFirebaseLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-[#FAF9F6]">
+        <div className="flex flex-col items-center gap-4 max-w-sm text-center px-4">
+          <div className="relative">
+            <Loader2 className="w-10 h-10 text-primary animate-spin" />
+            <Sparkles className="w-4 h-4 text-primary absolute -top-1 -right-1 animate-pulse" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-901 tracking-tight font-sans">Syncing Persistent Sandbox</h2>
+            <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+              Synchronizing candidate profile, saved campaign records, and voice-answers database. Please wait...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground font-sans selection:bg-primary/30">
       {/* Header */}
@@ -1078,13 +1269,25 @@ export default function App() {
         {activeView === "cover" && (
           <>
             {/* Sidebar */}
-            <aside className="w-[320px] border-r border-border bg-[#FAF9F6] flex flex-col gap-8 p-6 overflow-y-auto shrink-0 font-sans">
-          {/* Candidate Bio */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                Candidate Profile
-              </p>
+            {!isProfileCollapsed && (
+              <aside className="w-[320px] border-r border-border bg-[#FAF9F6] flex flex-col gap-8 p-6 overflow-y-auto shrink-0 font-sans">
+                {/* Candidate Bio */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="w-5 h-5 text-muted-foreground hover:text-primary p-0 h-auto w-auto"
+                        title="Hide Profile"
+                        onClick={() => setIsProfileCollapsed(true)}
+                      >
+                        <PanelLeftClose className="w-4 h-4" />
+                      </Button>
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                        Candidate Profile
+                      </p>
+                    </div>
               <div className="flex gap-1">
                  <Button 
                   variant="ghost" 
@@ -1329,20 +1532,32 @@ export default function App() {
             </div>
           )}
 
-          {/* Context Box */}
-          <div className="mt-auto p-4 bg-secondary/50 border border-border rounded-lg">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {companyName ? (
-                <>Targeting <strong>{companyName}</strong> application.</>
-              ) : (
-                <>Enter job details to begin.</>
-              )}
-            </p>
-          </div>
-        </aside>
+                {/* Context Box */}
+                <div className="mt-auto p-4 bg-secondary/50 border border-border rounded-lg">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {companyName ? (
+                      <>Targeting <strong>{companyName}</strong> application.</>
+                    ) : (
+                      <>Enter job details to begin.</>
+                    )}
+                  </p>
+                </div>
+              </aside>
+            )}
 
-        {/* Preview Area */}
-        <section className="flex-1 flex flex-col gap-6 p-10 preview-gradient overflow-y-auto relative">
+            {/* Preview Area */}
+            <section className="flex-1 flex flex-col gap-6 p-10 preview-gradient overflow-y-auto relative">
+              {isProfileCollapsed && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="absolute left-4 top-4 z-20 h-8 px-3 rounded-md bg-card shadow-sm border border-border shrink-0 text-xs font-bold gap-2 text-primary hover:bg-primary/5 transition-all"
+                  onClick={() => setIsProfileCollapsed(false)}
+                >
+                  <PanelLeftOpen className="w-3.5 h-3.5" />
+                  Show Profile
+                </Button>
+              )}
           {/* Floating Actions Bar (Visible when letter exists) */}
           {generatedLetter && (
             <div className="sticky top-0 z-10 flex justify-end mb-4 animate-in fade-in slide-in-from-top-4">
@@ -1715,6 +1930,7 @@ export default function App() {
           <InterviewView 
             userProfile={userProfile}
             jobDescription={jobDescription}
+            setJobDescription={setJobDescription}
             customQuestions={customQuestions}
             setCustomQuestions={setCustomQuestions}
             coverLetter={generatedLetter}
@@ -1733,27 +1949,33 @@ export default function App() {
           <WorkView 
             userProfile={userProfile}
             jobDescription={jobDescription}
+            setJobDescription={setJobDescription}
             workTaskDesc={workTaskDesc}
             setWorkTaskDesc={setWorkTaskDesc}
             selectedDocType={selectedDocType}
             setSelectedDocType={setSelectedDocType}
             generatedDoc={generatedDoc}
+            setGeneratedDoc={setGeneratedDoc}
             isDocGenerating={isDocGenerating}
             handleGenerateWorkDocument={handleGenerateWorkDocument}
             sheetInput={sheetInput}
             setSheetInput={setSheetInput}
             generatedSheet={generatedSheet}
+            setGeneratedSheet={setGeneratedSheet}
             isSheetGenerating={isSheetGenerating}
             handleGenerateWorkSheet={handleGenerateWorkSheet}
             taskInstructions={taskInstructions}
             setTaskInstructions={setTaskInstructions}
             taskDraftOutput={taskDraftOutput}
+            setTaskDraftOutput={setTaskDraftOutput}
             isTaskDrafting={isTaskDrafting}
             handleGenerateTaskDraft={handleGenerateTaskDraft}
             activeSlideIndex={activeSlideIndex}
             setActiveSlideIndex={setActiveSlideIndex}
             activeWorkTab={activeWorkTab}
             setActiveWorkTab={setActiveWorkTab}
+            workSources={workSources}
+            setWorkSources={setWorkSources}
           />
         )}
       </main>

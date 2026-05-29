@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "CandidateProfile": {
+      "title": "CandidateProfile",
+      "description": "Contains candidate biography details, summary, and experience lists.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "location": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "summary": { "type": "string" }
+      },
+      "required": ["name", "email"]
+    },
+    "JobRole": {
+      "title": "JobRole",
+      "description": "Specific target job campaign detailing customized letters, interview STAR prompts, slide outlines, and matrices.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "jobDescription": { "type": "string" },
+        "status": { "type": "string" },
+        "createdDate": { "type": "string" }
+      },
+      "required": ["id", "companyName", "jobTitle"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "CandidateProfile",
+      "description": "Root candidate user profile containing their core CV data."
+    },
+    "/users/{userId}/roles/{roleId}": {
+      "schema": "JobRole",
+      "description": "Unified tracker of candidate job roles with generated tools."
+    }
+  }
+}
