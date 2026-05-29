@@ -7,7 +7,8 @@ import {
   generateInterviewPrep,
   generateCapabilityTaskDraft,
   generateWorkDataSheet,
-  generateWorkDocument
+  generateWorkDocument,
+  generateTailoredEmail
 } from "./services/gemini";
 import { profile as sampleProfile } from "./data/profile";
 import { CandidateProfile, JobRole } from "./types";
@@ -324,6 +325,8 @@ export default function App() {
   const [generatedLetter, setGeneratedLetter] = useState(initialActiveRole?.coverLetter || "");
   const [emailSubject, setEmailSubject] = useState(initialActiveRole?.emailSubject || "");
   const [emailBody, setEmailBody] = useState(initialActiveRole?.emailBody || "");
+  const [emailFromName, setEmailFromName] = useState("");
+  const [emailFromEmail, setEmailFromEmail] = useState("");
   const [showEmailDraft, setShowEmailDraft] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [tempProfile, setTempProfile] = useState<CandidateProfile>(userProfile);
@@ -332,6 +335,10 @@ export default function App() {
   const [isEditing, setIsEditing] = useState(false);
   const [editableLetter, setEditableLetter] = useState(initialActiveRole?.coverLetter || "");
   const [refinementText, setRefinementText] = useState("");
+  const [originalLetterBeforeHumanizing, setOriginalLetterBeforeHumanizing] = useState(initialActiveRole?.originalLetterBeforeHumanizing || "");
+  const [humanizerChanges, setHumanizerChanges] = useState<Array<{ original: string; replacement: string; reason: string }>>(initialActiveRole?.humanizerChanges || []);
+  const [showHumanizerInspector, setShowHumanizerInspector] = useState(initialActiveRole?.humanizerChanges && initialActiveRole.humanizerChanges.length > 0 ? true : false);
+  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [analysisSuggestions, setAnalysisSuggestions] = useState<any[]>(initialActiveRole?.analysisSuggestions || []);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -379,6 +386,8 @@ export default function App() {
             sheetInput,
             generatedSheet,
             customQuestions,
+            originalLetterBeforeHumanizing,
+            humanizerChanges,
           };
         }
         return r;
@@ -400,6 +409,9 @@ export default function App() {
         setEditableLetter(targetRole.coverLetter || "");
         setEmailSubject(targetRole.emailSubject || "");
         setEmailBody(targetRole.emailBody || "");
+        setOriginalLetterBeforeHumanizing(targetRole.originalLetterBeforeHumanizing || "");
+        setHumanizerChanges(targetRole.humanizerChanges || []);
+        setShowHumanizerInspector(targetRole.humanizerChanges && targetRole.humanizerChanges.length > 0 ? true : false);
         setAnalysisSuggestions(targetRole.analysisSuggestions || []);
         setInterviewPrepData(targetRole.interviewPrepData || null);
         setUserStarsAnswers(targetRole.userStarsAnswers || {});
@@ -491,6 +503,9 @@ export default function App() {
           setSheetInput(currentActiveRole.sheetInput || "");
           setGeneratedSheet(currentActiveRole.generatedSheet || null);
           setCustomQuestions(currentActiveRole.customQuestions || "");
+          setOriginalLetterBeforeHumanizing(currentActiveRole.originalLetterBeforeHumanizing || "");
+          setHumanizerChanges(currentActiveRole.humanizerChanges || []);
+          setShowHumanizerInspector(currentActiveRole.humanizerChanges && currentActiveRole.humanizerChanges.length > 0 ? true : false);
         }
 
         // Release the auto-saver in the next microtask after states have fully committed
@@ -543,7 +558,9 @@ export default function App() {
         currentRoleInState.generatedDoc !== generatedDoc ||
         currentRoleInState.sheetInput !== sheetInput ||
         JSON.stringify(currentRoleInState.generatedSheet) !== JSON.stringify(generatedSheet) ||
-        currentRoleInState.customQuestions !== customQuestions;
+        currentRoleInState.customQuestions !== customQuestions ||
+        currentRoleInState.originalLetterBeforeHumanizing !== originalLetterBeforeHumanizing ||
+        JSON.stringify(currentRoleInState.humanizerChanges) !== JSON.stringify(humanizerChanges);
     }
 
     if (!hasChange) return;
@@ -572,6 +589,8 @@ export default function App() {
       sheetInput,
       generatedSheet,
       customQuestions,
+      originalLetterBeforeHumanizing,
+      humanizerChanges,
       status: currentRoleInState?.status || "Drafting",
       createdDate: currentRoleInState?.createdDate || new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short" })
     };
@@ -612,7 +631,9 @@ export default function App() {
     generatedDoc,
     sheetInput,
     generatedSheet,
-    customQuestions
+    customQuestions,
+    originalLetterBeforeHumanizing,
+    humanizerChanges
   ]);
 
   const handleCreateRole = (cmp: string, title: string, desc: string) => {
@@ -887,18 +908,23 @@ export default function App() {
 
     setIsGenerating(true);
     try {
+      const original = editableLetter || generatedLetter;
       const result = await removeAiVoice(
-        editableLetter || generatedLetter,
+        original,
         userProfile,
         companyName,
         jobTitle
       );
       
       if (result.letter) {
+        setOriginalLetterBeforeHumanizing(original);
+        setHumanizerChanges(result.changesMade || []);
+        setShowHumanizerInspector(true);
+
         setGeneratedLetter(result.letter);
         setEditableLetter(result.letter);
         setIsEditing(false);
-        toast.success("AI voice removed! The letter sounds more human now.");
+        toast.success("AI voice removed! Original draft backed up and reprocessed successfully.");
       }
       
       if (result.advice) {
@@ -908,6 +934,61 @@ export default function App() {
       toast.error("Failed to humanize the letter. Please try again.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleOpenEmailDraft = () => {
+    setEmailFromName(userProfile?.name || "");
+    setEmailFromEmail(userProfile?.email || "");
+
+    if (!applicationEmail) {
+      const slug = companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, "") : "company";
+      setApplicationEmail(`careers@${slug}.com`);
+    }
+
+    if (!emailSubject) {
+      setEmailSubject(`Application for ${jobTitle || "the position"} - ${userProfile?.name || "Candidate"}`);
+    }
+
+    if (!emailBody) {
+      setEmailBody(`Dear Hiring Team,
+
+I am writing to submit my application for the position of ${jobTitle || "the position"} at ${companyName || "your company"}. Please find attached my tailored cover letter and resume for your consideration.
+
+In addressing your exact candidate selection criteria, I have focused heavily on standard operating procedures, high technical accuracy, and strategic metrics to support your goals.
+
+Thank you for your time and professional review.
+
+Best regards,
+${userProfile?.name || "Candidate"}
+Email: ${userProfile?.email || ""}
+Phone: ${userProfile?.phone || ""}
+LinkedIn: ${userProfile?.linkedin || ""}`);
+    }
+
+    setShowEmailDraft(true);
+  };
+
+  const handleGenerateAiEmail = async () => {
+    setIsGeneratingEmail(true);
+    try {
+      const result = await generateTailoredEmail(
+        editableLetter || generatedLetter,
+        jobTitle,
+        companyName,
+        userProfile
+      );
+      if (result.subject) {
+        setEmailSubject(result.subject);
+      }
+      if (result.body) {
+        setEmailBody(result.body);
+      }
+      toast.success("AI tailored email generated based on your active cover letter!");
+    } catch (err) {
+      toast.error("Failed to draft via AI. You can still write or edit it manually.");
+    } finally {
+      setIsGeneratingEmail(false);
     }
   };
 
@@ -1329,7 +1410,7 @@ export default function App() {
             <div className="p-4 bg-secondary/30 rounded-xl border border-border space-y-3">
               <div className="space-y-1">
                 <p className="text-[11px] font-bold">{userProfile.name || "Unnamed Candidate"}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{userProfile.summary || "No summary provided"}</p>
+                <p className="text-[11px] text-zinc-300 line-clamp-2 leading-relaxed">{userProfile.summary || "No summary provided"}</p>
               </div>
               <div className="flex items-center gap-2 pt-1 border-t border-border/50">
                 <Button 
@@ -1436,7 +1517,7 @@ export default function App() {
                   ) : (
                     <div className="flex items-center gap-3 w-full">
                       {source.icon}
-                      <span className="text-[11px] text-muted-foreground truncate flex-1">{source.name}</span>
+                      <span className="text-xs text-zinc-200 truncate flex-1 font-medium">{source.name}</span>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Edit2 
                           className="w-3 h-3 text-muted-foreground cursor-pointer hover:text-primary" 
@@ -1524,8 +1605,8 @@ export default function App() {
                 <Sparkles className="w-3 h-3" />
                 <p className="text-[10px] uppercase tracking-widest font-bold">Coach Advice</p>
               </div>
-              <div className="bg-primary/5 border border-primary/10 p-4 rounded-lg">
-                <p className="text-xs leading-relaxed text-muted-foreground italic">
+              <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/5 border border-indigo-500/20 p-4 rounded-xl">
+                <p className="text-xs leading-relaxed text-zinc-100 font-medium">
                   "{advice}"
                 </p>
               </div>
@@ -1600,7 +1681,7 @@ export default function App() {
                   <Printer className="w-3 h-3 mr-2" />
                   Print / PDF
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setShowEmailDraft(true)} className="text-xs h-8 px-3 rounded-full">
+                <Button variant="ghost" size="sm" onClick={handleOpenEmailDraft} className="text-xs h-8 px-3 rounded-full">
                   <Mail className="w-3 h-3 mr-2" />
                   Email version
                 </Button>
@@ -1871,6 +1952,96 @@ export default function App() {
               </div>
             )}
 
+            {/* Humanizer Transformation Progress & Multi-Layer Comparison log */}
+            {showHumanizerInspector && humanizerChanges && humanizerChanges.length > 0 && (
+              <div className="w-full mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                <Card className="bg-card/50 border-emerald-500/20 shadow-xl backdrop-blur-sm overflow-hidden">
+                  <CardHeader className="bg-emerald-500/5 border-b border-emerald-500/10 py-5 flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-emerald-500/10 rounded-xl">
+                        <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-bold text-emerald-500">Voice Transformation Logs</CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground mt-0.5">Track exact replacements done to replace passive AI filler with high-conviction wording.</CardDescription>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => setShowHumanizerInspector(false)} 
+                      className="h-8 w-8 rounded-full border border-border bg-background hover:bg-muted"
+                    >
+                      <Plus className="w-4 h-4 rotate-45 text-muted-foreground hover:text-foreground" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    {advice && (
+                      <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-xl space-y-1">
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-600 font-mono">Coach Feedback & Strategic Focus</span>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{advice}</p>
+                      </div>
+                    )}
+
+                    <Tabs defaultValue="difference" className="w-full">
+                      <TabsList className="grid grid-cols-2 max-w-[320px] h-9 bg-secondary p-1 rounded-lg">
+                        <TabsTrigger value="difference" className="text-xs py-1 data-[state=active]:bg-background">Transformation Log</TabsTrigger>
+                        <TabsTrigger value="compare" className="text-xs py-1 data-[state=active]:bg-background">Full Comparison</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="difference" className="space-y-4 mt-4">
+                        <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2">
+                          {humanizerChanges.map((change, idx) => (
+                            <div key={idx} className="bg-secondary/35 border border-border/80 p-4 rounded-xl space-y-3 hover:border-emerald-500/10 transition-all">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <span className="text-[9px] font-bold text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Original (AI Voice Selection)</span>
+                                  <p className="text-xs leading-relaxed text-rose-250 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-lg italic">
+                                    "{change.original}"
+                                  </p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">Humanized Revision</span>
+                                  <p className="text-xs leading-relaxed text-emerald-200 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg font-medium">
+                                    "{change.replacement}"
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-[11px] bg-secondary p-2.5 rounded-md flex items-start gap-1.5 text-muted-foreground border border-border/50">
+                                <span className="font-bold text-neutral-600 select-none">💡 Reasoning:</span>
+                                <span>{change.reason}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="compare" className="mt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span> Original Draft (With AI patterns)
+                            </h4>
+                            <div className="line-clamp-none max-h-[400px] overflow-y-auto bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl text-xs leading-relaxed text-zinc-300 whitespace-pre-wrap font-mono prose prose-sm">
+                              {originalLetterBeforeHumanizing || generatedLetter}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold uppercase text-emerald-400 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span> Tailored High-Conviction Letter
+                            </h4>
+                            <div className="line-clamp-none max-h-[400px] overflow-y-auto bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl text-xs leading-relaxed text-zinc-100 whitespace-pre-wrap font-mono prose prose-sm font-medium">
+                              {generatedLetter}
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             <div 
               id="letter-print-root"
               className={`w-full bg-white text-[#1a1a1a] rounded-sm flex flex-col min-h-[800px] transition-all duration-500 ${templateStyles.container}`}
@@ -1984,7 +2155,7 @@ export default function App() {
       {/* Email Draft Overlay */}
       {showEmailDraft && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl p-8 space-y-6 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl p-8 space-y-6 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto w-full">
             <button 
               onClick={() => setShowEmailDraft(false)}
               className="absolute right-6 top-6 text-muted-foreground hover:text-foreground transition-all duration-300 hover:rotate-90 p-2"
@@ -1997,13 +2168,72 @@ export default function App() {
                 <Mail className="w-5 h-5 text-primary" />
                 Email Application Draft
               </h3>
-              <p className="text-sm text-muted-foreground">Short, direct version for body-of-email applications.</p>
+              <p className="text-sm text-muted-foreground">Short, direct submission email. Fully generated, autofilled and editable.</p>
+            </div>
+
+            {/* AI Generator Control Banner */}
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-[9px] uppercase tracking-widest text-primary font-bold font-mono">Tailor submission draft</span>
+                <p className="text-xs text-muted-foreground leading-snug">Generate a highly customized accompanying message tailored to the cover letter content.</p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleGenerateAiEmail}
+                disabled={isGeneratingEmail}
+                className="w-full sm:w-auto h-9 font-bold text-xs shrink-0 whitespace-nowrap bg-primary/10 text-primary hover:bg-primary/25 border-none"
+              >
+                {isGeneratingEmail ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    Tailor with AI
+                  </>
+                )}
+              </Button>
             </div>
 
             <div className="space-y-4">
+              {/* sender credentials block */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center justify-between">
+                    From (Name)
+                    <span className="text-[9px] font-normal text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded flex items-center gap-1 normal-case tracking-normal">
+                      <Edit2 className="w-2 h-2" /> Editable
+                    </span>
+                  </Label>
+                  <Input 
+                    value={emailFromName} 
+                    onChange={(e) => setEmailFromName(e.target.value)}
+                    placeholder="Your name..."
+                    className="bg-secondary/50 border-border h-12 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center justify-between">
+                    From (Email Address)
+                    <span className="text-[9px] font-normal text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded flex items-center gap-1 normal-case tracking-normal">
+                      <Edit2 className="w-2 h-2" /> Editable
+                    </span>
+                  </Label>
+                  <Input 
+                    value={emailFromEmail} 
+                    onChange={(e) => setEmailFromEmail(e.target.value)}
+                    placeholder="Your contact email..."
+                    className="bg-secondary/50 border-border h-12 text-sm"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center justify-between">
-                  To (Email Address)
+                  To (Recipient Email Address)
                   <span className="text-[9px] font-normal text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded flex items-center gap-1 normal-case tracking-normal">
                     <Edit2 className="w-2 h-2" /> Editable
                   </span>
@@ -2069,16 +2299,17 @@ export default function App() {
                   <Textarea 
                     value={emailBody} 
                     onChange={(e) => setEmailBody(e.target.value)}
-                    className="bg-secondary/50 border-border min-h-[200px] leading-relaxed resize-none text-sm"
+                    className="bg-secondary/50 border-border min-h-[220px] leading-relaxed resize-none text-sm"
                   />
                    <Button 
-                    className="absolute bottom-4 right-4 shadow-lg transition-transform active:scale-95"
+                    className="absolute bottom-4 right-4 shadow-lg transition-transform active:scale-95 text-xs h-9"
+                    size="sm"
                     onClick={() => {
                       navigator.clipboard.writeText(emailBody);
                       toast.success("Email body copied!");
                     }}
                   >
-                    <Copy className="w-4 h-4 mr-2" />
+                    <Copy className="w-3.5 h-3.5 mr-2" />
                     Copy Body
                   </Button>
                 </div>
@@ -2096,12 +2327,12 @@ export default function App() {
                     const mailto = `mailto:${applicationEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
                     window.open(mailto, '_blank');
                   }}
-                  className="border-border hover:bg-primary/5"
+                  className="border-border hover:bg-primary/5 text-xs h-10"
                 >
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Open in Default Mail
                 </Button>
-                <Button variant="ghost" onClick={() => setShowEmailDraft(false)}>
+                <Button variant="ghost" onClick={() => setShowEmailDraft(false)} className="text-xs h-10">
                   Close
                 </Button>
               </div>

@@ -54,4 +54,6 @@ export interface JobRole {
   sheetInput?: string;
   generatedSheet?: any;
   customQuestions?: string;
+  originalLetterBeforeHumanizing?: string;
+  humanizerChanges?: Array<{ original: string; replacement: string; reason: string }>;
 }

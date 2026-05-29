@@ -550,12 +550,12 @@ export function WorkView({
           <div className="space-y-4">
             {/* If docs is chosen, show format template selection */}
             {activeWorkTab === "docs" && (
-              <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-xl border border-dashed text-left">
-                <Label className="text-[10px] uppercase font-bold text-gray-600">Document Template style</Label>
+              <div className="space-y-1.5 bg-secondary/30 p-3.5 rounded-xl border border-border border-dashed text-left">
+                <Label className="text-[10px] uppercase font-bold text-zinc-400">Document Template style</Label>
                 <select
                   value={selectedDocType}
                   onChange={(e) => setSelectedDocType(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background h-9 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary text-slate-800 font-semibold"
+                  className="w-full rounded-md border border-border bg-background h-9 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary text-zinc-100 font-semibold"
                 >
                   <option value="SOP Document font-semibold">Standard Operating Procedure (SOP)</option>
                   <option value="GIS ArcPy Automation Script font-semibold">Python GIS Automation Script</option>
@@ -565,12 +565,12 @@ export function WorkView({
               </div>
             )}
 
-            <div className="space-y-2 text-left bg-slate-50/60 p-3 rounded-xl border border-border">
+            <div className="space-y-2 text-left bg-secondary/15 p-3 rounded-xl border border-border">
               <div className="flex justify-between items-center">
-                <Label className="text-[10px] uppercase font-bold text-gray-600">
+                <Label className="text-[10px] uppercase font-bold text-zinc-400">
                   Original Job Role Description
                 </Label>
-                <span className="text-[9px] font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 font-bold font-sans">
+                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold font-sans">
                   Editable
                 </span>
               </div>
@@ -578,12 +578,12 @@ export function WorkView({
                 placeholder="Edit original job description here..."
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
-                className="min-h-[85px] max-h-[140px] text-xs resize-y text-slate-800 font-medium bg-white"
+                className="min-h-[85px] max-h-[140px] text-xs resize-y text-zinc-100 font-medium bg-background border-border"
               />
             </div>
 
             <div className="space-y-2 text-left">
-              <Label className="text-[10px] uppercase font-bold text-gray-600">
+              <Label className="text-[10px] uppercase font-bold text-zinc-400">
                 Pasted Task / Assessment Instructions
               </Label>
               <Textarea
@@ -596,20 +596,20 @@ export function WorkView({
                 }
                 value={activePromptText}
                 onChange={(e) => handlePromptTextChange(e.target.value)}
-                className="min-h-[160px] text-xs resize-none text-slate-800 font-medium bg-white"
+                className="min-h-[160px] text-xs resize-none text-zinc-100 font-medium bg-background border-border"
               />
             </div>
 
             {/* Reference Sources & URLs Panel */}
             <div className="space-y-2 border-t pt-4 text-left">
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] uppercase font-bold text-gray-500 flex items-center gap-1">
+                <Label className="text-[10px] uppercase font-bold text-zinc-400 flex items-center gap-1">
                   📁 Reference Sources & URLs
                 </Label>
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="w-5 h-5 text-emerald-700 hover:text-emerald-950 p-0"
+                  className="w-5 h-5 text-emerald-400 hover:text-emerald-305 p-0 hover:bg-zinc-800"
                   title="Add Reference"
                   onClick={() => {
                     setNewWorkSourceType("link");
@@ -621,20 +621,20 @@ export function WorkView({
               </div>
 
               {showAddWorkSource && (
-                <div className="bg-emerald-50/50 border border-emerald-100 p-2.5 rounded-lg space-y-2 mt-2">
-                  <span className="text-[9px] uppercase font-bold tracking-widest text-emerald-800">Add New Reference Source</span>
-                  <div className="grid grid-cols-2 gap-1 bg-white p-0.5 rounded border border-emerald-200">
+                <div className="bg-emerald-500/5 border border-emerald-500/20 p-2.5 rounded-lg space-y-2 mt-2">
+                  <span className="text-[9px] uppercase font-bold tracking-widest text-emerald-400">Add New Reference Source</span>
+                  <div className="grid grid-cols-2 gap-1 bg-background p-0.5 rounded border border-border">
                     <button
                       type="button"
                       onClick={() => setNewWorkSourceType("link")}
-                      className={`py-1 text-[9px] font-bold rounded ${newWorkSourceType === "link" ? "bg-emerald-100 text-emerald-800 font-extrabold" : "text-muted-foreground"}`}
+                      className={`py-1 text-[9px] font-bold rounded ${newWorkSourceType === "link" ? "bg-emerald-500/15 text-emerald-300 font-extrabold" : "text-zinc-500 hover:text-zinc-300"}`}
                     >
                       🔗 Link / URL
                     </button>
                     <button
                       type="button"
                       onClick={() => setNewWorkSourceType("file")}
-                      className={`py-1 text-[9px] font-bold rounded ${newWorkSourceType === "file" ? "bg-emerald-100 text-emerald-800 font-extrabold" : "text-muted-foreground"}`}
+                      className={`py-1 text-[9px] font-bold rounded ${newWorkSourceType === "file" ? "bg-emerald-500/15 text-emerald-300 font-extrabold" : "text-zinc-500 hover:text-zinc-300"}`}
                     >
                       📂 Document / File
                     </button>
@@ -644,9 +644,9 @@ export function WorkView({
                       placeholder={newWorkSourceType === "link" ? "Type Link/URL (e.g., https://...)" : "Type Document name (e.g., Guidebook.pdf)"}
                       value={newWorkSourceName}
                       onChange={(e) => setNewWorkSourceName(e.target.value)}
-                      className="h-7 text-[10px] bg-white border border-emerald-200 flex-1 min-w-0"
+                      className="h-7 text-[10px] bg-background border-border text-zinc-100 flex-1 min-w-0"
                     />
-                    <Button size="sm" className="h-7 px-2 text-[10px] bg-[#155724] text-white hover:bg-[#114a1e] shrink-0" onClick={handleAddWorkSource}>Add</Button>
+                    <Button size="sm" className="h-7 px-2 text-[10px] bg-emerald-700 text-white hover:bg-emerald-800 shrink-0 border-none" onClick={handleAddWorkSource}>Add</Button>
                   </div>
                 </div>
               )}
@@ -700,7 +700,7 @@ export function WorkView({
               </div>
             </div>
 
-            <div className="p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-100/40 text-[11px] text-[#155724] leading-relaxed text-left">
+            <div className="p-3.5 bg-emerald-500/5 rounded-xl border border-emerald-500/20 text-[11px] text-emerald-300 leading-relaxed text-left">
               <strong className="block mb-1">Interactive Asset Generation</strong>
               Translate assessment specs on the fly to support slides, spreadsheets, or technical briefings.
             </div>

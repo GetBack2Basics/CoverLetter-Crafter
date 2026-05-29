@@ -1925,11 +1925,11 @@ export function InterviewView({
         {activeInterviewTab === "panel" && (
           <div className="w-full max-w-4xl mx-auto space-y-6 text-left">
             {/* Header */}
-            <div className="bg-white border rounded-2xl p-6 shadow-sm space-y-2">
-              <span className="text-[9px] bg-blue-105 text-blue-700 px-2 py-0.5 rounded font-black uppercase tracking-wider block w-max">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-2">
+              <span className="text-[9px] bg-blue-500/15 text-blue-300 px-2 py-0.5 rounded font-black uppercase tracking-wider block w-max border border-blue-500/25">
                 VERIFIED DECISION PANEL TARGET
               </span>
-              <h3 className="text-xl font-bold text-gray-900 font-sans tracking-tight">Hiring Panel & LinkedIn History Search</h3>
+              <h3 className="text-xl font-bold text-white font-sans tracking-tight">Hiring Panel & LinkedIn History Search</h3>
               <p className="text-xs text-muted-foreground leading-relaxed font-sans">
                 Study your panel's LinkedIn backgrounds, professional focused experience, and align your communications to speak to their specific objectives. Review current panel members or add custom interviewer names to simulate custom search indexing.
               </p>
@@ -1938,7 +1938,7 @@ export function InterviewView({
             {/* List of current interviewers */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {interviewers.map((int) => (
-                <div key={int.id} className="bg-white border rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition-all relative">
+                <div key={int.id} className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-4 hover:border-zinc-700 transition-all relative">
                   {/* Delete button */}
                   <button
                     type="button"
@@ -1951,17 +1951,17 @@ export function InterviewView({
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-650 font-bold shrink-0 font-sans">
+                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-300 font-bold shrink-0 font-sans border border-blue-500/20">
                         {int.name.substring(0, 2)}
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-sm text-slate-900 tracking-tight flex items-center gap-1.5 leading-snug">
+                        <h4 className="font-extrabold text-sm text-zinc-150 tracking-tight flex items-center gap-1.5 leading-snug">
                           {int.name}
-                          <span className="text-[10px] font-bold text-[#1e5480] bg-blue-50 px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-blue-100">
+                          <span className="text-[10px] font-bold text-blue-300 bg-blue-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-blue-500/20">
                             <Linkedin className="w-2.5 h-2.5" /> Checked
                           </span>
                         </h4>
-                        <p className="text-[11px] text-slate-500 font-medium leading-none mt-1">{int.role}</p>
+                        <p className="text-[11px] text-zinc-400 font-medium leading-none mt-1">{int.role}</p>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono mt-0.5">{int.org}</p>
                       </div>
                     </div>
@@ -1971,21 +1971,21 @@ export function InterviewView({
                     <div className="space-y-2 text-xs">
                       <div>
                         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Simulated LinkedIn Bio & History</span>
-                        <p className="text-slate-700 leading-relaxed font-sans">{int.backstory}</p>
+                        <p className="text-zinc-200 leading-relaxed font-sans">{int.backstory}</p>
                       </div>
 
                       {int.linkedinSearchSim && (
                         <div>
                           <span className="text-[9px] font-bold uppercase tracking-widest text-[#1e5480] block mb-0.5">LinkedIn Shared Content & Industry Focus</span>
-                          <p className="text-slate-600 leading-relaxed italic border-l-2 border-blue-100 pl-2">
+                          <p className="text-zinc-300 leading-relaxed italic border-l-2 border-blue-500/20 pl-2">
                             "{int.linkedinSearchSim}"
                           </p>
                         </div>
                       )}
 
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <div className="bg-secondary/40 p-3 rounded-xl border border-border">
                         <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#9c1c1c] block mb-1">🎯 Communication Appeal Strategy</span>
-                        <p className="text-slate-700 font-medium leading-relaxed font-sans">{int.tactic}</p>
+                        <p className="text-zinc-200 font-medium leading-relaxed font-sans">{int.tactic}</p>
                       </div>
                     </div>
                   </div>
@@ -2018,26 +2018,26 @@ export function InterviewView({
             </div>
 
             {/* Form to insert custom names */}
-            <div className="bg-white border rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <h4 className="text-sm font-bold text-gray-800 flex items-center gap-1.5 tracking-tight font-sans">
+                <h4 className="text-sm font-bold text-zinc-100 flex items-center gap-1.5 tracking-tight font-sans">
                   <Plus className="w-4 h-4 text-blue-600" />
                   Add Interviewer Panelist & Analyze Career Profile
                 </h4>
-                <p className="text-[10px] text-slate-500 font-sans italic">
+                <p className="text-[10px] text-zinc-400 font-sans italic">
                   Tip: Type "Owen Ziebell &lt;owen.ziebell@afac.com.au&gt;" or any name & email
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                 <div className="space-y-1.5 text-left md:col-span-3">
-                  <Label className="text-xs font-bold text-gray-700 font-sans">Full Name / Search Query</Label>
+                  <Label className="text-xs font-bold text-zinc-300 font-sans">Full Name / Search Query</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="e.g. Owen Ziebell <owen.ziebell@afac.com.au> or Susan Sweeney"
                       value={newInterviewerName}
                       onChange={(e) => setNewInterviewerName(e.target.value)}
-                      className="text-xs h-10 bg-white border border-slate-200 flex-1"
+                      className="text-xs h-10 bg-background border-border text-zinc-100 flex-1"
                       required
                     />
                     <Button
@@ -2062,31 +2062,31 @@ export function InterviewView({
                 </div>
 
                 <div className="space-y-1.5 text-left md:col-span-1">
-                  <Label className="text-xs font-bold text-gray-700 font-sans">Title/Specialty</Label>
+                  <Label className="text-xs font-bold text-zinc-300 font-sans">Title/Specialty</Label>
                   <Input
                     placeholder="e.g. Senior Knowledge Broker"
                     value={newInterviewerRole}
                     onChange={(e) => setNewInterviewerRole(e.target.value)}
-                    className="text-xs h-10 bg-white border border-slate-200"
+                    className="text-xs h-10 bg-background border-border text-zinc-100"
                     required
                   />
                 </div>
                 <div className="space-y-1.5 text-left md:col-span-2">
-                  <Label className="text-xs font-bold text-gray-700 font-sans">Organization/Division</Label>
+                  <Label className="text-xs font-bold text-zinc-300 font-sans">Organization/Division</Label>
                   <Input
                     placeholder="e.g. NESP"
                     value={newInterviewerOrg}
                     onChange={(e) => setNewInterviewerOrg(e.target.value)}
-                    className="text-xs h-10 bg-white border border-slate-200"
+                    className="text-xs h-10 bg-background border-border text-zinc-100"
                   />
                 </div>
 
                 {showMatchesSuggestion && (
-                  <div className="md:col-span-3 bg-slate-50 border border-blue-100 rounded-xl p-4.5 space-y-3">
+                  <div className="md:col-span-3 bg-secondary/30 border border-border rounded-xl p-4.5 space-y-3">
                     <div className="flex items-center justify-between border-b pb-2">
                       <div className="flex items-center gap-1.5">
                         <UserCheck className="w-4 h-4 text-blue-600" />
-                        <h5 className="text-xs font-bold text-gray-800 font-sans">
+                        <h5 className="text-xs font-bold text-zinc-100 font-sans">
                           Suggested Matching LinkedIn Profiles ({suggestedMatches.length} found)
                         </h5>
                       </div>

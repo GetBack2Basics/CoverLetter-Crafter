@@ -304,6 +304,10 @@ export async function removeAiVoice(
     IMPORTANT: Your response MUST be a JSON object with these keys:
     1. "letter": The rewritten cover letter in Markdown format (including the centred contact header).
     2. "advice": A brief explanation of what changes were made to humanize the voice.
+    3. "changesMade": An array of objects, where each object represents a specific transition, buzzword removal, or tone adjustment made. Each should have:
+       - "original": the exact fluffy/AI phrase that was replaced
+       - "replacement": the active, professional, or human phrase used instead
+       - "reason": the explicit coaching reasoning behind this change (e.g. "removed generic enthusiasm puffery for concrete value projection")
   `;
 
   try {
@@ -312,11 +316,35 @@ export async function removeAiVoice(
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            letter: { type: Type.STRING },
+            advice: { type: Type.STRING },
+            changesMade: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  original: { type: Type.STRING },
+                  replacement: { type: Type.STRING },
+                  reason: { type: Type.STRING }
+                },
+                required: ["original", "replacement", "reason"]
+              }
+            }
+          },
+          required: ["letter", "advice", "changesMade"]
+        }
       }
     });
     
     const result = cleanAndParseJSON(response.text || "{}");
-    return result as { letter: string; advice: string };
+    return result as { 
+      letter: string; 
+      advice: string; 
+      changesMade: Array<{ original: string; replacement: string; reason: string }>;
+    };
   } catch (error) {
     console.error("Error humanizing cover letter:", error);
     throw error;
@@ -1355,4 +1383,56 @@ export async function refineInterviewSTARAnswer(
   }
 }
 
+export async function generateTailoredEmail(
+  coverLetter: string,
+  jobTitle: string,
+  companyName: string,
+  profileData: CandidateProfile
+) {
+  const prompt = `
+    You are an expert career coach helping senior candidates compose a short, direct submission email.
+    
+    COVER LETTER TO COMPLY WITH:
+    ${coverLetter}
+    
+    JOB INFO:
+    Role: ${jobTitle}
+    Company: ${companyName}
+    
+    CANDIDATE INFO:
+    Name: ${profileData.name}
+    Contact: ${profileData.email} | ${profileData.phone}
+    
+    STRICT EMAIL DRAFT RULES:
+    1. SUBJECT: Keep it concise and professional, e.g., "Application for ${jobTitle} - ${profileData.name}".
+    2. BODY: Very direct and professional. Mention that the resume and tailored cover letter are attached for review. Address the representative appropriately. Strip away generic corporate filler. Keep it to 3-5 sentences maximum. Do NOT include placeholder fields like "[Date]" or "[Your Name]" — autofill them fully as per direct inputs.
+    
+    IMPORTANT: Your response MUST be a JSON object with these keys:
+    1. "subject": A professional subject line
+    2. "body": The clean email body in plain text format (with line breaks)
+  `;
 
+  try {
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            subject: { type: Type.STRING },
+            body: { type: Type.STRING }
+          },
+          required: ["subject", "body"]
+        }
+      }
+    });
+
+    const result = cleanAndParseJSON(response.text || "{}");
+    return result as { subject: string; body: string };
+  } catch (error) {
+    console.error("Error generating tailored email:", error);
+    throw error;
+  }
+}
