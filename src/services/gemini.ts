@@ -21,6 +21,13 @@ const TEXT_MODEL = USE_OPENROUTER
   : "gemini-3.5-flash";
 
 type GenerateContentArgs = Parameters<typeof ai.models.generateContent>[0];
+type OpenRouterResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+};
 
 function toPromptText(contents: GenerateContentArgs["contents"]): string {
   if (typeof contents === "string") return contents;
@@ -85,7 +92,7 @@ async function generateContent({
       throw new Error(`OpenRouter request failed (${response.status}): ${errorText}`);
     }
 
-    let data: any;
+    let data: OpenRouterResponse;
     try {
       data = await response.json();
     } catch (error) {
