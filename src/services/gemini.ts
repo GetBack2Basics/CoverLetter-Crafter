@@ -1,6 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CandidateProfile } from "../types";
 
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+const USE_OPENROUTER = OPENROUTER_API_KEY.length > 0;
+
 // Initialize the Google GenAI SDK with recommended telemetry headers
 const ai = new GoogleGenAI({ 
   apiKey: process.env.GEMINI_API_KEY || "",
@@ -12,7 +16,104 @@ const ai = new GoogleGenAI({
 });
 
 // Use the standard high-performance text model
-const TEXT_MODEL = "gemini-3.5-flash";
+const TEXT_MODEL = USE_OPENROUTER
+  ? (process.env.OPENROUTER_MODEL || "owl-alpha")
+  : "gemini-3.5-flash";
+
+type GenerateContentArgs = Parameters<typeof ai.models.generateContent>[0];
+type OpenRouterResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+};
+
+function toPromptText(contents: GenerateContentArgs["contents"]): string {
+  if (typeof contents === "string") return contents;
+  if (Array.isArray(contents)) {
+    return contents
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "parts" in item && Array.isArray(item.parts)) {
+          return item.parts
+            .map((part: unknown) => {
+              if (part && typeof part === "object" && "text" in part && typeof part.text === "string") {
+                return part.text;
+              }
+              return "";
+            })
+            .join("\n");
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
+
+async function generateContent({
+  model,
+  contents,
+  config,
+}: GenerateContentArgs): Promise<{ text: string }> {
+  if (USE_OPENROUTER) {
+    const headers = new Headers({
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + OPENROUTER_API_KEY,
+    });
+
+    const mappedConfig: Record<string, unknown> = {};
+    if (config && typeof config === "object") {
+      if ("temperature" in config && typeof config.temperature === "number") {
+        mappedConfig.temperature = config.temperature;
+      }
+      if ("maxOutputTokens" in config && typeof config.maxOutputTokens === "number") {
+        mappedConfig.max_tokens = config.maxOutputTokens;
+      }
+      if ("topP" in config && typeof config.topP === "number") {
+        mappedConfig.top_p = config.topP;
+      }
+    }
+
+    const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: toPromptText(contents) }],
+        ...mappedConfig,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter request failed (${response.status}): ${errorText}`);
+    }
+
+    let data: OpenRouterResponse;
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new Error(`OpenRouter returned a non-JSON response: ${String(error)}`);
+    }
+
+    const text = data?.choices?.[0]?.message?.content;
+    if (typeof text !== "string" || text.trim().length === 0) {
+      throw new Error("OpenRouter response missing generated text.");
+    }
+
+    return { text };
+  }
+
+  const response = await ai.models.generateContent({
+    model,
+    contents,
+    config,
+  });
+  return { text: response.text || "" };
+}
 
 export const AI_STATEMENT_TEXT = "The author(s) utilized artificial intelligence to optimize internal administrative efficiencies, such as compiling trends and spatial information. In alignment with national responsible AI frameworks, we do not deploy AI for automated decision-making. Human oversight is strictly maintained for all outcomes affecting the community.";
 
@@ -79,7 +180,7 @@ export async function extractJobDetails(jobDescription: string) {
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -232,7 +333,7 @@ export async function generateCoverLetter(
   }
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -311,7 +412,7 @@ export async function removeAiVoice(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -382,7 +483,7 @@ export async function analyzeCoverLetter(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -489,7 +590,7 @@ export async function generateInterviewPrep(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -720,7 +821,7 @@ export async function evaluateInterviewResponse(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -818,7 +919,7 @@ export async function generateCapabilityTaskDraft(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -959,7 +1060,7 @@ export async function generateWorkDataSheet(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1076,7 +1177,7 @@ export async function generateWorkDocument(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1141,7 +1242,7 @@ export async function researchInterviewer(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1235,7 +1336,7 @@ export async function suggestInterviewerMatches(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1351,7 +1452,7 @@ export async function refineInterviewSTARAnswer(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1413,7 +1514,7 @@ export async function generateTailoredEmail(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {

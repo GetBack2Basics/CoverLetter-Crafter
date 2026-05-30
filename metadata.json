@@ -1,5 +1,5 @@
 {
-  "name": "JobCrafter AI",
+  "name": "JobCrafter_AI",
   "description": "Premium multi-tool workspace to generate tailored cover letters, Capability Task presentation slides, operational work sheets, and STAR interview Q&A guides using Gemini AI.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
