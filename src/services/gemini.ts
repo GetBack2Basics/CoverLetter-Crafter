@@ -1,6 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CandidateProfile } from "../types";
 
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+const USE_OPENROUTER = OPENROUTER_API_KEY.length > 0;
+
 // Initialize the Google GenAI SDK with recommended telemetry headers
 const ai = new GoogleGenAI({ 
   apiKey: process.env.GEMINI_API_KEY || "",
@@ -12,7 +16,51 @@ const ai = new GoogleGenAI({
 });
 
 // Use the standard high-performance text model
-const TEXT_MODEL = "gemini-3.5-flash";
+const TEXT_MODEL = USE_OPENROUTER
+  ? (process.env.OPENROUTER_MODEL || "owl-alpha")
+  : "gemini-3.5-flash";
+
+async function generateContent({
+  model,
+  contents,
+  config,
+}: {
+  model: string;
+  contents: string;
+  config?: unknown;
+}) {
+  if (USE_OPENROUTER) {
+    const headers = new Headers({
+      "Content-Type": "application/json",
+    });
+    headers.set("Authorization", ["Bearer", OPENROUTER_API_KEY].join(" "));
+
+    const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: contents }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter request failed (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    return {
+      text: data?.choices?.[0]?.message?.content ?? "",
+    };
+  }
+
+  return ai.models.generateContent({
+    model,
+    contents,
+    config,
+  });
+}
 
 export const AI_STATEMENT_TEXT = "The author(s) utilized artificial intelligence to optimize internal administrative efficiencies, such as compiling trends and spatial information. In alignment with national responsible AI frameworks, we do not deploy AI for automated decision-making. Human oversight is strictly maintained for all outcomes affecting the community.";
 
@@ -79,7 +127,7 @@ export async function extractJobDetails(jobDescription: string) {
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -232,7 +280,7 @@ export async function generateCoverLetter(
   }
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -311,7 +359,7 @@ export async function removeAiVoice(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -382,7 +430,7 @@ export async function analyzeCoverLetter(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -489,7 +537,7 @@ export async function generateInterviewPrep(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -720,7 +768,7 @@ export async function evaluateInterviewResponse(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -818,7 +866,7 @@ export async function generateCapabilityTaskDraft(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -959,7 +1007,7 @@ export async function generateWorkDataSheet(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1076,7 +1124,7 @@ export async function generateWorkDocument(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1141,7 +1189,7 @@ export async function researchInterviewer(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1235,7 +1283,7 @@ export async function suggestInterviewerMatches(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1351,7 +1399,7 @@ export async function refineInterviewSTARAnswer(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {
@@ -1413,7 +1461,7 @@ export async function generateTailoredEmail(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: TEXT_MODEL,
       contents: prompt,
       config: {

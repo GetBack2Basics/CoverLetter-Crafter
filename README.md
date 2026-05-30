@@ -2,7 +2,7 @@
 
 JobCrafter AI is a premium, full-suite professional campaign workspace designed to help candidates prepare for senior roles and technical interviews. It allows you to analyze target job descriptions, generate highly tailored cover letters, draft capability task presentation slides or operational spreadsheets, and practice answering behavioral and technical questions in an interactive STAR interview simulator.
 
-The application leverages the high-performance **Gemini 3.5 Flash** model with the modern `@google/genai` SDK to produce highly accurate, domain-specific insights while upholding strict administrative standards.
+The application supports **Gemini 3.5 Flash** by default, and can also run through **OpenRouter** (default model: `owl-alpha`) for API compatibility in custom hosting environments.
 
 ---
 
@@ -36,7 +36,7 @@ Follow these steps to clone the code, configure your credentials, and run the de
 ### Prerequisites
 
 *   [Node.js](https://nodejs.org/) (v18 or higher is recommended)
-*   An active internet connection to communicate with the Gemini API.
+*   An active internet connection to communicate with the configured AI API provider (Gemini or OpenRouter).
 
 ### Installation & Setup
 
@@ -52,15 +52,22 @@ Follow these steps to clone the code, configure your credentials, and run the de
     ```
 
 3.  **Configure Environment Variables**
-    To run the app locally, you must provide your own Gemini API key.
+    To run the app locally, configure one provider:
     
     *   Duplicate the `.env.example` template:
         ```bash
         cp .env.example .env
         ```
-    *   Open the newly created `.env` file and replace the placeholder with your actual **Google Gemini API Key**:
+    *   **Gemini (default)**:
         ```env
         GEMINI_API_KEY="your_actual_gemini_api_key_here"
+        ```
+    *   **OpenRouter (`owl-alpha`)**:
+        ```env
+        OPENROUTER_API_KEY="your_openrouter_api_key"
+        OPENROUTER_MODEL="owl-alpha"
+        # optional
+        OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
         ```
 
 4.  **Launch the Local Server**
@@ -87,7 +94,7 @@ If you want to continue editing, deploying, or sharing this application within t
     *   Use the **Import Code** or **Sync GitHub Repo** action to load your file directory.
 3.  **Platform Environment Variables**
     *   AI Studio automatically provisions the secure hosting container.
-    *   You do not need to hardcode your `GEMINI_API_KEY` into any files. Simply navigate to the **Secrets** or **Settings** panel within the AI Studio interface and input your `GEMINI_API_KEY`. The platform will automatically inject this key to `process.env.GEMINI_API_KEY` when building your preview frame.
+    *   You do not need to hardcode API keys into any files. Configure `GEMINI_API_KEY` (or `OPENROUTER_API_KEY`/`OPENROUTER_MODEL`) in the platform secrets panel.
 
 ---
 
@@ -96,7 +103,7 @@ If you want to continue editing, deploying, or sharing this application within t
 *   **UI Core**: Built with **React 19** and **TypeScript** configured over **Vite**.
 *   **Styling**: Styled using utility-first classes from **Tailwind CSS**.
 *   **Animations**: Liquid fluid layouts and transitions powered by the **Motion** library (`motion/react`).
-*   **API Client**: Leverages the official modern `@google/genai` package for direct server-less proxy variables injected during the Vite build pipeline (`vite.config.ts`).
+*   **API Client**: Uses `@google/genai` for Gemini and supports OpenRouter-compatible chat completions when OpenRouter environment variables are set.
 *   **Build Scripts**:
     *   `npm run build`: Bundles compiling client-side static assets inside the `dist/` folder.
     *   `npm run dev`: Launches the developer preview framework locally on port `3000` by default (or `PORT` if provided).
