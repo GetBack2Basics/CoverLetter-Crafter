@@ -43,12 +43,13 @@ Follow these steps to clone the code, configure your credentials, and run the de
 1.  **Clone the Repository**
     ```bash
     git clone <your-repository-url>
-    cd job-crafter
+    cd CoverLetter-Crafter
     ```
+    > Use a normal working clone (`git clone ...`). Do **not** use `git clone --mirror` for local development, because mirror clones are bare repositories and do not contain a working tree for `npm ci`.
 
 2.  **Install Dependencies**
     ```bash
-    npm install
+    npm ci
     ```
 
 3.  **Configure Environment Variables**
