@@ -85,10 +85,19 @@ async function generateContent({
       throw new Error(`OpenRouter request failed (${response.status}): ${errorText}`);
     }
 
-    const data = await response.json();
-    return {
-      text: data?.choices?.[0]?.message?.content ?? "",
-    };
+    let data: any;
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new Error(`OpenRouter returned a non-JSON response: ${String(error)}`);
+    }
+
+    const text = data?.choices?.[0]?.message?.content;
+    if (typeof text !== "string" || text.trim().length === 0) {
+      throw new Error("OpenRouter response missing generated text.");
+    }
+
+    return { text };
   }
 
   const response = await ai.models.generateContent({
