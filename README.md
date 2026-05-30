@@ -43,6 +43,10 @@ Follow these steps to clone the code, configure your credentials, and run the de
 1.  **Clone the Repository**
     ```bash
     git clone <your-repository-url>
+    cd <your-repository-directory>
+    ```
+    If your GitHub repository is named `JobCrafter_AI`, then use:
+    ```bash
     cd JobCrafter_AI
     ```
 
