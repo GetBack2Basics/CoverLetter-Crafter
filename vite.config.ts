@@ -5,6 +5,7 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const portFromEnv = /^\d+$/.test(env.PORT ?? '') ? Number(env.PORT) : undefined;
   return {
     plugins: [react(), tailwindcss()],
     define: {
@@ -19,7 +20,7 @@ export default defineConfig(({mode}) => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      port: parseInt(env.PORT, 10) || 3000,
+      port: portFromEnv && portFromEnv > 0 && portFromEnv < 65536 ? portFromEnv : 3000,
     },
   };
 });
