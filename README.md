@@ -69,6 +69,26 @@ Follow these steps to clone the code, configure your credentials, and run the de
     ```
     Once started, open your web browser and navigate to **`http://localhost:3000`** to interact with the application.
 
+### Host/Port Plan for Shared Hosts
+
+If your target host already has common web ports in use, run JobCrafter on an alternate host/port pair:
+
+1.  Check active listeners on the host:
+    ```bash
+    ss -ltnp
+    ```
+2.  Pick an available port (for example `3100`).
+3.  Start the app using explicit host/port overrides:
+    ```bash
+    HOST=0.0.0.0 PORT=3100 npm run dev
+    ```
+    * Use `HOST=127.0.0.1` for local-only access.
+    * Use `HOST=0.0.0.0` to allow access from other machines on the network.
+4.  For production-like preview, use matching overrides:
+    ```bash
+    HOST=0.0.0.0 PORT=3100 npm run preview
+    ```
+
 ---
 
 ## Importing Back Into Google AI Studio
@@ -94,4 +114,4 @@ If you want to continue editing, deploying, or sharing this application within t
 *   **API Client**: Leverages the official modern `@google/genai` package for direct server-less proxy variables injected during the Vite build pipeline (`vite.config.ts`).
 *   **Build Scripts**:
     *   `npm run build`: Bundles compiling client-side static assets inside the `dist/` folder.
-    *   `npm run dev`: Launches the developer preview framework locally on port `3000`.
+    *   `npm run dev`: Launches the developer preview framework (defaults to `0.0.0.0:3000`, supports `HOST`/`PORT` overrides).
