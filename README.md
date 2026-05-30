@@ -77,16 +77,17 @@ If your target host already has common web ports in use, run JobCrafter on an al
     ```bash
     ss -ltnp
     ```
-2.  Pick an available port (for example `3100`).
+2.  Pick an available port (for example `3001`).
 3.  Start the app using explicit host/port overrides:
     ```bash
-    HOST=0.0.0.0 PORT=3100 npm run dev
+    HOST=0.0.0.0 PORT=3001 npm run dev
     ```
     * Use `HOST=127.0.0.1` for local-only access.
     * Use `HOST=0.0.0.0` to allow access from other machines on the network.
 4.  For production-like preview, use matching overrides:
     ```bash
-    HOST=0.0.0.0 PORT=3100 npm run preview
+    npm run build
+    HOST=0.0.0.0 PORT=3001 npm run preview
     ```
 
 ---
