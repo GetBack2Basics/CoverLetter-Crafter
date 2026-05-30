@@ -72,6 +72,7 @@ Follow these steps to clone the code, configure your credentials, and run the de
     ```bash
     PORT=3001 npm run dev
     ```
+    You can also set `PORT=3001` in your `.env` file before running `npm run dev`.
 
 ---
 
