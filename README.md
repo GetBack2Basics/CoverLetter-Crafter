@@ -31,7 +31,7 @@ The application leverages the high-performance **Gemini 3.5 Flash** model with t
 
 ## Getting Started
 
-Follow these steps to clone the code, configure your credentials, and run the developer server locally.
+Follow these steps to clone the code, configure your credentials, and run the developer server locally. See the install.md for details on install in complex environment.
 
 ### Prerequisites
 
