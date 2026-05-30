@@ -43,12 +43,13 @@ Follow these steps to clone the code, configure your credentials, and run the de
 1.  **Clone the Repository**
     ```bash
     git clone <your-repository-url>
-    cd job-crafter
+    cd CoverLetter-Crafter
     ```
+    The repository root contains the project's `package.json` and `package-lock.json`, so run all `npm` commands from this directory.
 
 2.  **Install Dependencies**
     ```bash
-    npm install
+    npm ci
     ```
 
 3.  **Configure Environment Variables**
