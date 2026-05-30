@@ -22,23 +22,61 @@ const TEXT_MODEL = USE_OPENROUTER
 
 type GenerateContentArgs = Parameters<typeof ai.models.generateContent>[0];
 
+function toPromptText(contents: GenerateContentArgs["contents"]): string {
+  if (typeof contents === "string") return contents;
+  if (Array.isArray(contents)) {
+    return contents
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "parts" in item && Array.isArray(item.parts)) {
+          return item.parts
+            .map((part: unknown) => {
+              if (part && typeof part === "object" && "text" in part && typeof part.text === "string") {
+                return part.text;
+              }
+              return "";
+            })
+            .join("\n");
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
+
 async function generateContent({
   model,
   contents,
   config,
-}: GenerateContentArgs) {
+}: GenerateContentArgs): Promise<{ text: string }> {
   if (USE_OPENROUTER) {
     const headers = new Headers({
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + OPENROUTER_API_KEY,
     });
-    headers.set("Authorization", "Bearer " + OPENROUTER_API_KEY);
+
+    const mappedConfig: Record<string, unknown> = {};
+    if (config && typeof config === "object") {
+      if ("temperature" in config && typeof config.temperature === "number") {
+        mappedConfig.temperature = config.temperature;
+      }
+      if ("maxOutputTokens" in config && typeof config.maxOutputTokens === "number") {
+        mappedConfig.max_tokens = config.maxOutputTokens;
+      }
+      if ("topP" in config && typeof config.topP === "number") {
+        mappedConfig.top_p = config.topP;
+      }
+    }
 
     const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         model,
-        messages: [{ role: "user", content: contents }],
+        messages: [{ role: "user", content: toPromptText(contents) }],
+        ...mappedConfig,
       }),
     });
 
@@ -53,11 +91,12 @@ async function generateContent({
     };
   }
 
-  return ai.models.generateContent({
+  const response = await ai.models.generateContent({
     model,
     contents,
     config,
   });
+  return { text: response.text || "" };
 }
 
 export const AI_STATEMENT_TEXT = "The author(s) utilized artificial intelligence to optimize internal administrative efficiencies, such as compiling trends and spatial information. In alignment with national responsible AI frameworks, we do not deploy AI for automated decision-making. Human oversight is strictly maintained for all outcomes affecting the community.";
