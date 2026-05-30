@@ -67,7 +67,11 @@ Follow these steps to clone the code, configure your credentials, and run the de
     ```bash
     npm run dev
     ```
-    Once started, open your web browser and navigate to **`http://localhost:3000`** to interact with the application.
+    By default, the app starts on **`http://localhost:3000`**.  
+    To avoid host port conflicts, you can set a custom port:
+    ```bash
+    PORT=3001 npm run dev
+    ```
 
 ---
 
@@ -94,4 +98,4 @@ If you want to continue editing, deploying, or sharing this application within t
 *   **API Client**: Leverages the official modern `@google/genai` package for direct server-less proxy variables injected during the Vite build pipeline (`vite.config.ts`).
 *   **Build Scripts**:
     *   `npm run build`: Bundles compiling client-side static assets inside the `dist/` folder.
-    *   `npm run dev`: Launches the developer preview framework locally on port `3000`.
+    *   `npm run dev`: Launches the developer preview framework locally on port `3000` by default (or `PORT` if provided).
