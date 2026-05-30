@@ -20,20 +20,18 @@ const TEXT_MODEL = USE_OPENROUTER
   ? (process.env.OPENROUTER_MODEL || "owl-alpha")
   : "gemini-3.5-flash";
 
+type GenerateContentArgs = Parameters<typeof ai.models.generateContent>[0];
+
 async function generateContent({
   model,
   contents,
   config,
-}: {
-  model: string;
-  contents: string;
-  config?: unknown;
-}) {
+}: GenerateContentArgs) {
   if (USE_OPENROUTER) {
     const headers = new Headers({
       "Content-Type": "application/json",
     });
-    headers.set("Authorization", ["Bearer", OPENROUTER_API_KEY].join(" "));
+    headers.set("Authorization", "Bearer " + OPENROUTER_API_KEY);
 
     const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
       method: "POST",
