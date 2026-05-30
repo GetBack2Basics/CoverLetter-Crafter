@@ -1295,7 +1295,7 @@ LinkedIn: ${userProfile?.linkedin || ""}`);
           <div className="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
             <FileText className="w-4 h-4 text-white" />
           </div>
-          JobCrafter AI
+          JobCrafter_AI
         </div>
         <div className="flex items-center gap-4">
           <span className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-bold tracking-wider uppercase">

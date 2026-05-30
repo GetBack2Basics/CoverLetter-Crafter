@@ -1,6 +1,6 @@
-# JobCrafter AI — Workspace & STAR Interview Copilot
+# JobCrafter_AI — Workspace & STAR Interview Copilot
 
-JobCrafter AI is a premium, full-suite professional campaign workspace designed to help candidates prepare for senior roles and technical interviews. It allows you to analyze target job descriptions, generate highly tailored cover letters, draft capability task presentation slides or operational spreadsheets, and practice answering behavioral and technical questions in an interactive STAR interview simulator.
+JobCrafter_AI is a premium, full-suite professional campaign workspace designed to help candidates prepare for senior roles and technical interviews. It allows you to analyze target job descriptions, generate highly tailored cover letters, draft capability task presentation slides or operational spreadsheets, and practice answering behavioral and technical questions in an interactive STAR interview simulator.
 
 The application supports **Gemini 3.5 Flash** by default, and can also run through **OpenRouter** (default model: `owl-alpha`) for API compatibility in custom hosting environments.
 
@@ -43,7 +43,7 @@ Follow these steps to clone the code, configure your credentials, and run the de
 1.  **Clone the Repository**
     ```bash
     git clone <your-repository-url>
-    cd job-crafter
+    cd JobCrafter_AI
     ```
 
 2.  **Install Dependencies**
